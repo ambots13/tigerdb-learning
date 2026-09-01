@@ -115,6 +115,31 @@ FROM scratch_events;`,
       note: 'Swap show_chunks for drop_chunks with the same arguments to actually remove them.',
     },
     {
+      title: 'The fourth built-in policy: reordering',
+      explain:
+        'TimescaleDB ships four built-in policies: refresh (module 03), columnstore (module 04), retention ' +
+        '(above), and reorder. A reorder policy rewrites each completed chunk in the order of an index you ' +
+        'choose, so rows you read together end up stored together. It is the cheaper alternative to CLUSTER, ' +
+        'because it works chunk by chunk and does not hold an exclusive lock on the whole table.',
+      sql: [
+        `CREATE INDEX IF NOT EXISTS scratch_events_source_time_idx
+  ON scratch_events (source, time DESC);`,
+        `SELECT add_reorder_policy('scratch_events', 'scratch_events_source_time_idx',
+  if_not_exists => true
+) AS job_id;`,
+        `SELECT job_id, proc_name, hypertable_name
+FROM timescaledb_information.jobs
+WHERE hypertable_name = 'scratch_events'
+ORDER BY job_id;`,
+      ],
+      note:
+        'Reordering only applies to row-oriented chunks - a chunk already converted to the columnstore is ' +
+        'skipped, since the columnstore has its own orderby setting.',
+      takeaway:
+        'If none of these four policies fits your problem, the scheduler is open: the next step registers a ' +
+        'job of your own.',
+    },
+    {
       title: 'Write your own background job',
       explain:
         'The scheduler is not limited to built-in policies. Any procedure taking (job_id INTEGER, config ' +

@@ -44,7 +44,7 @@ Lessons are idempotent: re-run any module as many times as you like.
 | 02 | Write & query | 9 min | Bulk loading, `time_bucket()`, `first()`/`last()`, joins to metadata |
 | 03 | Continuous aggregates | 10 min | Incremental rollups, refresh policies, real-time aggregation, hierarchies |
 | 04 | Hypercore columnstore | 10 min | `segmentby`/`orderby`, chunk conversion, measured size and speed gains |
-| 05 | Jobs, policies & retention | 9 min | The job scheduler, retention, `drop_chunks`, custom background jobs |
+| 05 | Jobs, policies & retention | 9 min | The job scheduler, all four built-in policies, `drop_chunks`, custom background jobs |
 | 06 | Hyperfunctions | 11 min | Gapfilling, `counter_agg`, `time_weight`, approximate percentiles |
 | 07 | Performance optimization | 10 min | Indexing for your access pattern, chunk sizing, chunk skipping |
 | 08 | Capstone | 12 min | One complete pipeline: ingest → rollup → compress → retain → dashboard |

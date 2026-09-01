@@ -93,7 +93,29 @@ SELECT show_chunks('scratch_events', older_than => INTERVAL '20 days') AS would_
 
 > **Note** Swap show_chunks for drop_chunks with the same arguments to actually remove them.
 
-## 7. Write your own background job
+## 7. The fourth built-in policy: reordering
+
+TimescaleDB ships four built-in policies: refresh (module 03), columnstore (module 04), retention (above), and reorder. A reorder policy rewrites each completed chunk in the order of an index you choose, so rows you read together end up stored together. It is the cheaper alternative to CLUSTER, because it works chunk by chunk and does not hold an exclusive lock on the whole table.
+
+```sql
+CREATE INDEX IF NOT EXISTS scratch_events_source_time_idx
+  ON scratch_events (source, time DESC);
+
+SELECT add_reorder_policy('scratch_events', 'scratch_events_source_time_idx',
+  if_not_exists => true
+) AS job_id;
+
+SELECT job_id, proc_name, hypertable_name
+FROM timescaledb_information.jobs
+WHERE hypertable_name = 'scratch_events'
+ORDER BY job_id;
+```
+
+> **Takeaway** If none of these four policies fits your problem, the scheduler is open: the next step registers a job of your own.
+
+> **Note** Reordering only applies to row-oriented chunks - a chunk already converted to the columnstore is skipped, since the columnstore has its own orderby setting.
+
+## 8. Write your own background job
 
 The scheduler is not limited to built-in policies. Any procedure taking (job_id INTEGER, config JSONB) can be registered, which is how you schedule your own summarisation, cleanup or alerting work without an external cron.
 
@@ -123,7 +145,7 @@ SELECT add_job('audit_event_count',
 ) AS job_id;
 ```
 
-## 8. Run the custom job and read its output
+## 9. Run the custom job and read its output
 
 The same run_job procedure works for custom jobs. The config JSONB is passed straight through, so one procedure can back many differently-configured jobs.
 
@@ -131,7 +153,7 @@ _This step runs a timed comparison in the CLI; see the runner output._
 
 > **Takeaway** alter_job(job_id, scheduled => false) pauses a job, and alter_job can also change its schedule or config without recreating it.
 
-## 9. Clean up the jobs and scratch table
+## 10. Clean up the jobs and scratch table
 
 delete_job removes a custom job. Built-in policies have their own remove_* helpers, such as remove_retention_policy.
 

@@ -104,6 +104,10 @@ SELECT * FROM chunk_columnstore_stats('readings');
 SELECT add_retention_policy('readings', drop_after => INTERVAL '90 days');
 SELECT remove_retention_policy('readings');
 
+-- Reorder completed chunks by an index (cheaper, chunk-wise CLUSTER)
+SELECT add_reorder_policy('readings', 'readings_sensor_time_idx');
+SELECT remove_reorder_policy('readings');
+
 CALL run_job(1001);                       -- run any policy immediately
 SELECT alter_job(1001, scheduled => false);
 SELECT delete_job(1001);
