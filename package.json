@@ -1,0 +1,26 @@
+{
+  "name": "tigerdb-learning",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A runnable, interactive course for learning TigerData (TimescaleDB on PostgreSQL).",
+  "scripts": {
+    "db:up": "./scripts/db.sh up",
+    "db:down": "./scripts/db.sh down",
+    "db:reset": "./scripts/db.sh reset",
+    "db:psql": "./scripts/db.sh psql",
+    "seed": "node src/seed.mjs",
+    "lesson": "node src/cli.mjs",
+    "lessons": "node src/cli.mjs list",
+    "play": "node src/web/server.mjs",
+    "docs": "node src/docs.mjs",
+    "verify": "node src/verify.mjs"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "pg": "^8.13.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
