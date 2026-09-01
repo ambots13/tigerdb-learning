@@ -13,6 +13,21 @@ container named `tigerdb-lab` exited; `npm run db:logs` shows why.
 
 Modules 01–08 need the shared dataset. Module 00 works without it.
 
+### `Port 4000 is already in use`
+
+The playground is probably already running — open http://localhost:4000. Otherwise run it elsewhere:
+
+```bash
+PORT=4001 npm run play
+```
+
+To find and stop the process holding the port:
+
+```bash
+ss -ltnp | grep :4000     # shows the pid
+kill <pid>
+```
+
 ### Port 5433 already in use
 
 Set a different port in `.env` (`PGPORT=5434`) — `scripts/db.sh` reads it and publishes accordingly.

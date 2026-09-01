@@ -98,11 +98,26 @@ app.get('/api/schema', async (_req, res) => {
 
 async function start() {
   const version = await assertConnection();
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(
       `\n  ${c.bold(c.cyan('TigerData playground'))} ${c.gray(`· TimescaleDB ${version} · ${config.host}:${config.port}/${config.database}`)}`,
     );
     console.log(`  ${c.bold(`http://localhost:${PORT}`)}\n`);
+  });
+
+  server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(
+        `\n  ${c.red(`Port ${PORT} is already in use.`)}\n` +
+          `  ${c.gray('Either the playground is already running - try')} http://localhost:${PORT}\n` +
+          `  ${c.gray('or start it on another port:')} PORT=${PORT + 1} npm run play\n`,
+      );
+    } else if (error.code === 'EACCES') {
+      console.error(`\n  ${c.red(`Not allowed to bind port ${PORT}.`)} ${c.gray('Try a port above 1024.')}\n`);
+    } else {
+      console.error(`\n  ${c.red('Playground failed:')} ${error.message}\n`);
+    }
+    process.exit(1);
   });
 }
 

@@ -61,6 +61,8 @@ Lesson text on the left, a SQL editor and result grid on the right. Load any les
 editor with one click, then change it and see what happens. This is the fastest way to experiment
 beyond the scripted steps.
 
+If port 4000 is taken, use `PORT=4001 npm run play`.
+
 ## The sample dataset
 
 `npm run seed` builds an IoT sensor fleet used by every module, so you learn one schema instead of nine:
