@@ -39,6 +39,15 @@ CREATE TABLE readings (
 );
 `;
 
+// Creating a table WITH (tsdb.hypertable) also enables the columnstore and
+// installs a default policy that compresses chunks older than a day. Modules
+// 01-03 study rowstore behaviour and module 04 enables the columnstore
+// deliberately, so the lab starts from a plain rowstore hypertable.
+const ROWSTORE_ONLY = `
+CALL remove_columnstore_policy('readings', if_exists => true);
+ALTER TABLE readings SET (timescaledb.enable_columnstore = false);
+`;
+
 const SENSORS = `
 INSERT INTO sensors (sensor_id, name, site, model, installed_at)
 SELECT
@@ -100,6 +109,7 @@ async function main() {
 
   const started = Date.now();
   await query(SCHEMA);
+  await query(ROWSTORE_ONLY);
   console.log(`  ${c.green('✓')} schema created (sensors + readings hypertable)`);
 
   await query(SENSORS);
@@ -117,6 +127,8 @@ async function main() {
   } finally {
     client.release();
   }
+
+  await query('ANALYZE readings');
 
   const { rows } = await query(STATS);
   const stats = rows[0];

@@ -27,7 +27,8 @@ async function runStep(step, index, total, options, prompt) {
   if (step.explain) print('\n' + wrap(step.explain, '  '));
 
   if (step.sql) {
-    print('\n' + sqlBlock(step.sql));
+    const statements = Array.isArray(step.sql) ? step.sql : [step.sql];
+    print('\n' + statements.map((s) => sqlBlock(s)).join('\n'));
     if (!options.auto) {
       const answer = await prompt.ask(
         `\n  ${c.dim('[Enter] run  ·  [s] skip  ·  [q] quit  ')}`,
@@ -37,17 +38,30 @@ async function runStep(step, index, total, options, prompt) {
       if (key === 's') return 'skipped';
     }
 
-    const started = Date.now();
-    const result = await query(step.sql);
-    const elapsed = Date.now() - started;
+    // Statements are sent one at a time: a multi-statement string runs inside an
+    // implicit transaction, and procedures such as refresh_continuous_aggregate
+    // are not allowed there.
+    let result;
+    for (const statement of statements) {
+      const started = Date.now();
+      result = await query(statement);
+      const elapsed = Date.now() - started;
 
-    if (result.rows.length) {
-      print('\n' + table(result.rows, result.fields, step.maxRows ?? 10));
-      print(
-        `\n  ${c.gray(`${result.rows.length} row(s) · ${ms(elapsed)}`)}`,
-      );
-    } else {
-      print(`\n  ${c.green('✓')} ${result.command || 'OK'} ${c.gray(`· ${ms(elapsed)}`)}`);
+      if (result.rows.length) {
+        if (result.fields.length === 1 && result.fields[0] === 'QUERY PLAN') {
+          const limit = step.maxRows ?? 14;
+          print('');
+          for (const row of result.rows.slice(0, limit)) print('  ' + c.gray(row['QUERY PLAN']));
+          if (result.rows.length > limit) {
+            print('  ' + c.gray(`… ${result.rows.length - limit} more plan line(s)`));
+          }
+        } else {
+          print('\n' + table(result.rows, result.fields, step.maxRows ?? 10));
+        }
+        print(`\n  ${c.gray(`${result.rows.length} row(s) · ${ms(elapsed)}`)}`);
+      } else {
+        print(`\n  ${c.green('✓')} ${result.command || 'OK'} ${c.gray(`· ${ms(elapsed)}`)}`);
+      }
     }
 
     if (step.verify) await step.verify(result);
