@@ -217,7 +217,6 @@ END $$;`,
       'Without deleting anything, return how many chunks a 20-day retention policy would drop from readings, in a column named doomed.',
     hint: 'show_chunks() is set-returning, so you can count its rows. Use older_than => INTERVAL.',
     solution: `SELECT count(*) AS doomed FROM show_chunks('readings', older_than => INTERVAL '20 days');`,
-    check: (rows) => rows.length === 1 && 'doomed' in rows[0] && Number(rows[0].doomed) > 0,
   },
   next: 'Next: npm run lesson 06  (hyperfunctions)',
 };

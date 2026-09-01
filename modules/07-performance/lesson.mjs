@@ -256,11 +256,6 @@ LIMIT 5;`,
       'Return the three largest chunks of readings by total size: columns chunk_name and total_bytes, largest first.',
     hint: 'chunks_detailed_size() returns one row per chunk, including total_bytes.',
     solution: `SELECT chunk_name, total_bytes FROM chunks_detailed_size('readings') ORDER BY total_bytes DESC LIMIT 3;`,
-    check: (rows) =>
-      rows.length === 3 &&
-      'chunk_name' in rows[0] &&
-      'total_bytes' in rows[0] &&
-      Number(rows[0].total_bytes) >= Number(rows[2].total_bytes),
   },
   next: 'Next: npm run lesson 08  (capstone)',
 };

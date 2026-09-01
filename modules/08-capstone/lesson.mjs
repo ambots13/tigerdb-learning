@@ -211,7 +211,6 @@ LIMIT 5;`,
       'From fleet_hourly, return the vehicle that travelled the most kilometres in the last 7 days: columns vehicle_id and km, one row.',
     hint: 'delta(odo) gives kilometres per bucket; sum them per vehicle and order descending.',
     solution: `SELECT vehicle_id, sum(delta(odo)) AS km FROM fleet_hourly WHERE bucket >= now() - INTERVAL '7 days' GROUP BY vehicle_id ORDER BY km DESC LIMIT 1;`,
-    check: (rows) => rows.length === 1 && Number(rows[0].km) > 0,
   },
   next: 'You have finished the lab. Run npm run play for a free-form SQL playground.',
 };

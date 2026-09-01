@@ -177,7 +177,6 @@ LIMIT 5;`,
       'Using readings_hourly, return the single hottest bucket recorded for sensor 3: columns bucket and max_temp, one row.',
     hint: 'ORDER BY max_temp DESC LIMIT 1, filtered to sensor_id = 3.',
     solution: `SELECT bucket, max_temp FROM readings_hourly WHERE sensor_id = 3 ORDER BY max_temp DESC LIMIT 1;`,
-    check: (rows) => rows.length === 1 && 'bucket' in rows[0] && 'max_temp' in rows[0],
   },
   next: 'Next: npm run lesson 04  (the columnstore)',
 };

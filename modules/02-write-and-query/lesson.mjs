@@ -205,8 +205,6 @@ DELETE FROM sensors WHERE sensor_id = 99;`,
       'Return the average temperature per site for the last 24 hours, as columns site and avg_temp, ordered by site.',
     hint: 'Join readings to sensors, filter on time, and GROUP BY site.',
     solution: `SELECT s.site, avg(r.temperature) AS avg_temp FROM readings r JOIN sensors s USING (sensor_id) WHERE r.time >= now() - INTERVAL '24 hours' GROUP BY s.site ORDER BY s.site;`,
-    check: (rows) =>
-      rows.length >= 4 && 'site' in rows[0] && 'avg_temp' in rows[0],
   },
   next: 'Next: npm run lesson 03  (continuous aggregates)',
 };

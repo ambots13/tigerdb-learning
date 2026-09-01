@@ -58,6 +58,62 @@ function makeContext() {
   return { query, timeQuery, withClient, print, table, c, bytes, ms, wrap, heading, sqlBlock };
 }
 
+function normalize(value) {
+  if (value === null || value === undefined) return null;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'object') return JSON.stringify(value);
+  return value;
+}
+
+/** Numeric comparison with a small relative tolerance, string comparison otherwise. */
+function sameValue(a, b) {
+  if (a === null || b === null) return a === b;
+  const na = Number(a);
+  const nb = Number(b);
+  if (Number.isFinite(na) && Number.isFinite(nb) && a !== '' && b !== '') {
+    const scale = Math.max(Math.abs(na), Math.abs(nb), 1);
+    return Math.abs(na - nb) / scale < 1e-6;
+  }
+  return String(a) === String(b);
+}
+
+/**
+ * Compare an answer against the reference result. Grading on the actual values
+ * matters: checking only the shape of the result would accept an answer like
+ * `SELECT 1 AS old_chunks`.
+ */
+function compareRows(actual, expected) {
+  if (actual.length !== expected.length) {
+    return { ok: false, reason: `expected ${expected.length} row(s), got ${actual.length}` };
+  }
+  if (!expected.length) return { ok: true };
+
+  const wanted = Object.keys(expected[0]);
+  for (const column of wanted) {
+    if (!(column in actual[0])) {
+      return { ok: false, reason: `missing the column "${column}"` };
+    }
+  }
+
+  for (let i = 0; i < expected.length; i += 1) {
+    for (const column of wanted) {
+      if (!sameValue(normalize(actual[i][column]), normalize(expected[i][column]))) {
+        return {
+          ok: false,
+          reason: `row ${i + 1}, column "${column}" is ${JSON.stringify(normalize(actual[i][column]))}`,
+        };
+      }
+    }
+  }
+  return { ok: true };
+}
+
+/** Grade an answer by running the reference solution and diffing the results. */
+async function gradeAnswer(challenge, rows) {
+  const expected = await query(challenge.solution);
+  return compareRows(rows, expected.rows);
+}
+
 async function runStep(step, index, total, options, prompt) {
   print(heading(`Step ${index + 1}/${total} · ${step.title}`));
   if (step.explain) print('\n' + wrap(step.explain, '  '));
@@ -132,15 +188,36 @@ async function runChallenge(challenge, options, prompt) {
   if (challenge.hint) print(callout('Hint', challenge.hint, c.blue));
 
   if (options.auto) {
-    // Non-interactive: prove the reference solution still works.
-    const result = await query(challenge.solution);
-    const ok = await challenge.check(result.rows, result);
+    // Two assertions: the reference solution still works, and the grader is not
+    // vacuous - a placeholder answer of the right shape must be rejected.
+    const reference = await query(challenge.solution);
+    const referenceOk = (await gradeAnswer(challenge, reference.rows)).ok;
+
+    const columns = Object.keys(reference.rows[0] ?? {});
+    const decoy = columns.length
+      ? `SELECT ${columns.map((col) => `1 AS "${col}"`).join(', ')}`
+      : null;
+    let decoyRejected = true;
+    if (decoy) {
+      try {
+        const decoyRows = (await query(decoy)).rows;
+        decoyRejected = !(await gradeAnswer(challenge, decoyRows)).ok;
+      } catch {
+        decoyRejected = true;
+      }
+    }
+
     print(
-      ok
+      referenceOk
         ? `\n  ${c.green('✓ reference solution passes')}`
         : `\n  ${c.red('✗ reference solution FAILED')}`,
     );
-    return ok;
+    print(
+      decoyRejected
+        ? `  ${c.green('✓ placeholder answer rejected')}`
+        : `  ${c.red('✗ grader accepts a placeholder answer')}`,
+    );
+    return referenceOk && decoyRejected;
   }
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -150,11 +227,12 @@ async function runChallenge(challenge, options, prompt) {
     try {
       const result = await query(answer);
       print('\n' + table(result.rows, result.fields, 10));
-      if (await challenge.check(result.rows, result)) {
+      const verdict = await gradeAnswer(challenge, result.rows);
+      if (verdict.ok) {
         print(`\n  ${c.green('✓ Correct.')}`);
         return true;
       }
-      print(`\n  ${c.yellow('Not quite - the shape or values are off. Try again.')}`);
+      print(`\n  ${c.yellow('Not quite:')} ${verdict.reason}. ${c.gray('Try again.')}`);
     } catch (error) {
       print(`\n  ${c.red('SQL error:')} ${error.message}`);
     }

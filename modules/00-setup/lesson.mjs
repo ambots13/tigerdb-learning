@@ -77,7 +77,6 @@ ORDER BY table_name;`,
       'Write a query returning the installed version of the timescaledb_toolkit extension in a column named version.',
     hint: 'pg_extension has extname and extversion columns.',
     solution: `SELECT extversion AS version FROM pg_extension WHERE extname = 'timescaledb_toolkit';`,
-    check: (rows) => rows.length === 1 && typeof rows[0].version === 'string',
   },
   next: 'Next: npm run seed, then npm run lesson 01',
 };

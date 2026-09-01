@@ -160,7 +160,6 @@ ORDER BY bucket;`,
       'Return the 95th percentile of humidity over the last 24 hours, in a column named p95, using approx_percentile.',
     hint: 'approx_percentile(0.95, percentile_agg(humidity))',
     solution: `SELECT approx_percentile(0.95, percentile_agg(humidity)) AS p95 FROM readings WHERE time >= now() - INTERVAL '24 hours';`,
-    check: (rows) => rows.length === 1 && Number(rows[0].p95) > 0,
   },
   next: 'Next: npm run lesson 07  (performance tuning)',
 };

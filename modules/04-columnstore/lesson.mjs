@@ -232,7 +232,6 @@ RETURNING time, sensor_id, temperature;`,
       'Return the compression ratio achieved on readings - before bytes divided by after bytes - as a column named ratio.',
     hint: 'hypertable_columnstore_stats() returns before_compression_total_bytes and after_compression_total_bytes.',
     solution: `SELECT round(before_compression_total_bytes::numeric / after_compression_total_bytes, 2) AS ratio FROM hypertable_columnstore_stats('readings');`,
-    check: (rows) => rows.length === 1 && 'ratio' in rows[0] && Number(rows[0].ratio) > 1,
   },
   next: 'Next: npm run lesson 05  (jobs, policies and retention)',
 };
