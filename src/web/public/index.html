@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TigerData Learning Lab</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>TigerData <span>Learning Lab</span></h1>
+      <nav id="schema" class="schema"></nav>
+    </header>
+
+    <main>
+      <aside id="sidebar">
+        <div class="sidebar-head">
+          <label for="module-select">Module</label>
+          <select id="module-select"></select>
+        </div>
+        <div id="lesson" class="lesson"></div>
+      </aside>
+
+      <section class="workbench">
+        <div class="editor-wrap">
+          <div class="editor-head">
+            <span>SQL</span>
+            <span class="hint">Ctrl/Cmd + Enter to run</span>
+            <button id="run">Run</button>
+          </div>
+          <textarea id="sql" spellcheck="false">SELECT time_bucket('1 hour', time) AS bucket,
+       sensor_id,
+       round(avg(temperature)::numeric, 2) AS avg_temp
+FROM readings
+WHERE time >= now() - INTERVAL '6 hours'
+GROUP BY bucket, sensor_id
+ORDER BY bucket DESC, sensor_id
+LIMIT 20;</textarea>
+        </div>
+        <div id="result" class="result">
+          <p class="placeholder">Run a query, or click any <code>Run this</code> button in a lesson step.</p>
+        </div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
