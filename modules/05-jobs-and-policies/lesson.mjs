@@ -1,0 +1,198 @@
+export default {
+  title: 'Jobs, policies & retention',
+  duration: '9 min',
+  summary: 'Every policy is a background job. Inspect them, run them on demand, and write your own.',
+  objectives: [
+    'Inspect scheduled jobs and their run history',
+    'Add a retention policy and watch it drop chunks',
+    'Drop chunks manually with drop_chunks()',
+    'Register and run a custom background job',
+  ],
+  steps: [
+    {
+      title: 'Everything automatic is a job',
+      explain:
+        'Refresh policies, columnstore policies and retention policies are all rows in the same job scheduler. ' +
+        'If you completed modules 03 and 04 you already created two of these.',
+      sql: `SELECT job_id, application_name, proc_name, schedule_interval, hypertable_name
+FROM timescaledb_information.jobs
+WHERE job_id >= 1000
+ORDER BY job_id;`,
+    },
+    {
+      title: 'Did they actually run?',
+      explain:
+        'job_stats is the first place to look when a policy "is not working". It records the last run, the ' +
+        'last success, and the failure count - a job that errors keeps its schedule but stops making progress.',
+      sql: `SELECT job_id, last_run_started_at, last_successful_finish, last_run_status, total_failures
+FROM timescaledb_information.job_stats
+WHERE job_id >= 1000
+ORDER BY job_id;`,
+      note:
+        'A brand new policy has not run yet, so nulls here are expected until its first scheduled execution.',
+    },
+    {
+      title: 'A scratch hypertable to delete from',
+      explain:
+        'Retention deletes data, so we will not point it at the shared dataset. This table holds 60 days of ' +
+        'hourly events in 1-day chunks - enough to see chunks disappear.',
+      sql: [
+        `DROP TABLE IF EXISTS scratch_events CASCADE;`,
+        `CREATE TABLE scratch_events (
+  time     TIMESTAMPTZ NOT NULL,
+  source   TEXT        NOT NULL,
+  payload  JSONB
+) WITH (
+  tsdb.hypertable,
+  tsdb.partition_column = 'time',
+  tsdb.chunk_interval = '1 day'
+);`,
+        `INSERT INTO scratch_events (time, source, payload)
+SELECT ts, 'gateway-' || (1 + (extract(epoch FROM ts)::bigint % 3)), '{"ok": true}'
+FROM generate_series(now() - INTERVAL '60 days', now(), INTERVAL '1 hour') AS ts;`,
+        `SELECT count(*) AS events,
+       (SELECT count(*) FROM timescaledb_information.chunks
+         WHERE hypertable_name = 'scratch_events') AS chunks
+FROM scratch_events;`,
+      ],
+    },
+    {
+      title: 'Add a retention policy',
+      explain:
+        'drop_after says how old a chunk must be before it is removed. Retention works at chunk granularity: ' +
+        'a chunk is dropped only when its whole range is older than the threshold, so you never pay for ' +
+        'row-by-row deletes.',
+      sql: `SELECT add_retention_policy('scratch_events',
+  drop_after    => INTERVAL '30 days',
+  if_not_exists => true
+) AS job_id;`,
+      takeaway:
+        'Dropping a chunk is a DROP TABLE on a small table: it is close to instant and returns the space ' +
+        'immediately, unlike DELETE which leaves dead rows for VACUUM.',
+    },
+    {
+      title: 'Run the policy now instead of waiting',
+      explain:
+        'Policies run on a schedule, which is inconvenient when you are learning. run_job executes one ' +
+        'immediately in the foreground. Watch the chunk count before and after.',
+      run: async ({ query, print, table, c }) => {
+        const countChunks = async () =>
+          Number(
+            (
+              await query(
+                `SELECT count(*) AS n FROM timescaledb_information.chunks WHERE hypertable_name = 'scratch_events';`,
+              )
+            ).rows[0].n,
+          );
+        const jobId = (
+          await query(
+            `SELECT job_id FROM timescaledb_information.jobs
+             WHERE hypertable_name = 'scratch_events' AND proc_name = 'policy_retention';`,
+          )
+        ).rows[0].job_id;
+
+        const before = await countChunks();
+        print(`\n  ${c.gray(`Running job ${jobId} ...`)}`);
+        await query(`CALL run_job(${jobId});`);
+        const after = await countChunks();
+
+        print('');
+        print(
+          table(
+            [{ chunks_before: before, chunks_after: after, dropped: before - after }],
+            ['chunks_before', 'chunks_after', 'dropped'],
+          ),
+        );
+        print(`\n  ${c.bold(c.green(`${before - after} chunks dropped`))} ${c.gray('in one statement.')}`);
+      },
+    },
+    {
+      title: 'Manual chunk operations',
+      explain:
+        'show_chunks and drop_chunks are the manual equivalents. Always run show_chunks first - it tells you ' +
+        'exactly what drop_chunks would remove, and it is the safe way to test a threshold.',
+      sql: `SELECT show_chunks('scratch_events', older_than => INTERVAL '20 days') AS would_be_dropped;`,
+      note: 'Swap show_chunks for drop_chunks with the same arguments to actually remove them.',
+    },
+    {
+      title: 'Write your own background job',
+      explain:
+        'The scheduler is not limited to built-in policies. Any procedure taking (job_id INTEGER, config ' +
+        'JSONB) can be registered, which is how you schedule your own summarisation, cleanup or alerting ' +
+        'work without an external cron.',
+      sql: [
+        `CREATE TABLE IF NOT EXISTS job_audit (
+  ran_at   TIMESTAMPTZ DEFAULT now(),
+  job_id   INTEGER,
+  message  TEXT
+);`,
+        `CREATE OR REPLACE PROCEDURE audit_event_count(job_id INTEGER, config JSONB)
+LANGUAGE plpgsql AS
+$$
+DECLARE
+  total BIGINT;
+  label TEXT := coalesce(config ->> 'label', 'unnamed');
+BEGIN
+  SELECT count(*) INTO total FROM scratch_events;
+  INSERT INTO job_audit (job_id, message)
+  VALUES (job_id, format('%s: %s events remain', label, total));
+END;
+$$;`,
+        `SELECT add_job('audit_event_count',
+  schedule_interval => INTERVAL '1 hour',
+  config            => '{"label": "nightly audit"}'
+) AS job_id;`,
+      ],
+    },
+    {
+      title: 'Run the custom job and read its output',
+      explain:
+        'The same run_job procedure works for custom jobs. The config JSONB is passed straight through, so ' +
+        'one procedure can back many differently-configured jobs.',
+      run: async ({ query, print, table }) => {
+        const jobId = (
+          await query(
+            `SELECT job_id FROM timescaledb_information.jobs WHERE proc_name = 'audit_event_count' ORDER BY job_id DESC LIMIT 1;`,
+          )
+        ).rows[0].job_id;
+        await query(`CALL run_job(${jobId});`);
+        const audit = await query(
+          `SELECT job_id, message FROM job_audit ORDER BY ran_at DESC LIMIT 3;`,
+        );
+        print('');
+        print(table(audit.rows, audit.fields));
+      },
+      takeaway:
+        'alter_job(job_id, scheduled => false) pauses a job, and alter_job can also change its schedule or ' +
+        'config without recreating it.',
+    },
+    {
+      title: 'Clean up the jobs and scratch table',
+      explain:
+        'delete_job removes a custom job. Built-in policies have their own remove_* helpers, such as ' +
+        'remove_retention_policy.',
+      sql: [
+        `DO $$
+DECLARE
+  id INTEGER;
+BEGIN
+  FOR id IN SELECT job_id FROM timescaledb_information.jobs WHERE proc_name = 'audit_event_count'
+  LOOP
+    PERFORM delete_job(id);
+  END LOOP;
+END $$;`,
+        `DROP TABLE IF EXISTS scratch_events CASCADE;`,
+        `DROP TABLE IF EXISTS job_audit;`,
+        `DROP PROCEDURE IF EXISTS audit_event_count(INTEGER, JSONB);`,
+      ],
+    },
+  ],
+  challenge: {
+    prompt:
+      'List the scheduled jobs attached to the readings hypertable: columns job_id and proc_name.',
+    hint: 'timescaledb_information.jobs has a hypertable_name column.',
+    solution: `SELECT job_id, proc_name FROM timescaledb_information.jobs WHERE hypertable_name = 'readings' ORDER BY job_id;`,
+    check: (rows) => rows.length >= 1 && 'job_id' in rows[0] && 'proc_name' in rows[0],
+  },
+  next: 'Next: npm run lesson 06  (hyperfunctions)',
+};

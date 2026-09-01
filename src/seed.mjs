@@ -14,6 +14,20 @@ const DAYS = Number(process.env.SEED_DAYS || 30);
 const INTERVAL_SECONDS = Number(process.env.SEED_INTERVAL || 60);
 
 const SCHEMA = `
+-- Continuous aggregates created by later modules depend on readings, and a
+-- hierarchical aggregate depends on another aggregate, so clear them first.
+DO $$
+DECLARE
+  view_ref text;
+BEGIN
+  FOR view_ref IN
+    SELECT format('%I.%I', view_schema, view_name)
+    FROM timescaledb_information.continuous_aggregates
+  LOOP
+    EXECUTE format('DROP MATERIALIZED VIEW IF EXISTS %s CASCADE', view_ref);
+  END LOOP;
+END $$;
+
 DROP TABLE IF EXISTS readings CASCADE;
 DROP TABLE IF EXISTS sensors CASCADE;
 
