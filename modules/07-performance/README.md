@@ -150,14 +150,14 @@ LIMIT 5;
 
 ## Challenge
 
-Return the name of the index you created in this module, from pg_indexes, in a column named indexname.
+Return the three largest chunks of readings by total size: columns chunk_name and total_bytes, largest first.
 
-_Hint: pg_indexes has tablename and indexname columns; the index is called readings_sensor_time_idx._
+_Hint: chunks_detailed_size() returns one row per chunk, including total_bytes._
 
 <details><summary>Solution</summary>
 
 ```sql
-SELECT indexname FROM pg_indexes WHERE tablename = 'readings' AND indexname = 'readings_sensor_time_idx';
+SELECT chunk_name, total_bytes FROM chunks_detailed_size('readings') ORDER BY total_bytes DESC LIMIT 3;
 ```
 
 </details>

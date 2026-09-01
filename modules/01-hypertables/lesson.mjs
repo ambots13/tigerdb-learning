@@ -124,10 +124,14 @@ SELECT avg(temperature) FROM readings;`,
   ],
   challenge: {
     prompt:
-      'Return the number of chunks in the readings hypertable, in a column named chunks.',
-    hint: "timescaledb_information.chunks has a hypertable_name column.",
-    solution: `SELECT count(*) AS chunks FROM timescaledb_information.chunks WHERE hypertable_name = 'readings';`,
-    check: (rows) => rows.length === 1 && Number(rows[0].chunks) > 1,
+      'Return how many chunks of readings hold data older than 20 days, in a column named old_chunks.',
+    hint: 'Each row in timescaledb_information.chunks has range_end; compare it to now() - INTERVAL.',
+    solution: `SELECT count(*) AS old_chunks FROM timescaledb_information.chunks WHERE hypertable_name = 'readings' AND range_end < now() - INTERVAL '20 days';`,
+    check: (rows) => {
+      if (rows.length !== 1 || !('old_chunks' in rows[0])) return false;
+      const n = Number(rows[0].old_chunks);
+      return n > 0 && n < 31;
+    },
   },
   next: 'Next: npm run lesson 02  (writing and querying time-series data)',
 };

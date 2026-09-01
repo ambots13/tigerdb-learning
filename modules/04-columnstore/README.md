@@ -128,14 +128,14 @@ DELETE FROM readings WHERE energy_kwh = 500 AND temperature = 17.5;
 
 ## Challenge
 
-Return how many chunks of readings are currently columnar, in a column named columnar_chunks.
+Return the compression ratio achieved on readings - before bytes divided by after bytes - as a column named ratio.
 
-_Hint: timescaledb_information.chunks has a boolean is_compressed column._
+_Hint: hypertable_columnstore_stats() returns before_compression_total_bytes and after_compression_total_bytes._
 
 <details><summary>Solution</summary>
 
 ```sql
-SELECT count(*) AS columnar_chunks FROM timescaledb_information.chunks WHERE hypertable_name = 'readings' AND is_compressed;
+SELECT round(before_compression_total_bytes::numeric / after_compression_total_bytes, 2) AS ratio FROM hypertable_columnstore_stats('readings');
 ```
 
 </details>

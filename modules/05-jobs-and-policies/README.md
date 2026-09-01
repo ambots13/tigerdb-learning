@@ -177,14 +177,14 @@ DROP PROCEDURE IF EXISTS audit_event_count(INTEGER, JSONB);
 
 ## Challenge
 
-List the scheduled jobs attached to the readings hypertable: columns job_id and proc_name.
+Without deleting anything, return how many chunks a 20-day retention policy would drop from readings, in a column named doomed.
 
-_Hint: timescaledb_information.jobs has a hypertable_name column._
+_Hint: show_chunks() is set-returning, so you can count its rows. Use older_than => INTERVAL._
 
 <details><summary>Solution</summary>
 
 ```sql
-SELECT job_id, proc_name FROM timescaledb_information.jobs WHERE hypertable_name = 'readings' ORDER BY job_id;
+SELECT count(*) AS doomed FROM show_chunks('readings', older_than => INTERVAL '20 days');
 ```
 
 </details>

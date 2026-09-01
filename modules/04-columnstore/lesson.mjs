@@ -229,10 +229,10 @@ RETURNING time, sensor_id, temperature;`,
   ],
   challenge: {
     prompt:
-      'Return how many chunks of readings are currently columnar, in a column named columnar_chunks.',
-    hint: 'timescaledb_information.chunks has a boolean is_compressed column.',
-    solution: `SELECT count(*) AS columnar_chunks FROM timescaledb_information.chunks WHERE hypertable_name = 'readings' AND is_compressed;`,
-    check: (rows) => rows.length === 1 && Number(rows[0].columnar_chunks) > 0,
+      'Return the compression ratio achieved on readings - before bytes divided by after bytes - as a column named ratio.',
+    hint: 'hypertable_columnstore_stats() returns before_compression_total_bytes and after_compression_total_bytes.',
+    solution: `SELECT round(before_compression_total_bytes::numeric / after_compression_total_bytes, 2) AS ratio FROM hypertable_columnstore_stats('readings');`,
+    check: (rows) => rows.length === 1 && 'ratio' in rows[0] && Number(rows[0].ratio) > 1,
   },
   next: 'Next: npm run lesson 05  (jobs, policies and retention)',
 };

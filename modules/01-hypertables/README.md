@@ -129,14 +129,14 @@ DROP TABLE IF EXISTS conditions;
 
 ## Challenge
 
-Return the number of chunks in the readings hypertable, in a column named chunks.
+Return how many chunks of readings hold data older than 20 days, in a column named old_chunks.
 
-_Hint: timescaledb_information.chunks has a hypertable_name column._
+_Hint: Each row in timescaledb_information.chunks has range_end; compare it to now() - INTERVAL._
 
 <details><summary>Solution</summary>
 
 ```sql
-SELECT count(*) AS chunks FROM timescaledb_information.chunks WHERE hypertable_name = 'readings';
+SELECT count(*) AS old_chunks FROM timescaledb_information.chunks WHERE hypertable_name = 'readings' AND range_end < now() - INTERVAL '20 days';
 ```
 
 </details>
