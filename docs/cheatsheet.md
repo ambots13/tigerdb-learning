@@ -229,6 +229,27 @@ FROM visits GROUP BY bucket;
 SELECT rb_cardinality(rb_or_agg(users)) FROM visits_hourly;   -- exact uniques, any range
 ```
 
+## Advanced analytics
+
+```sql
+-- Downsample for charting, preserving peaks (unlike avg-per-bucket)
+SELECT * FROM unnest((SELECT lttb(time, value, 200) FROM metrics));
+
+-- How long was each thing in each state?
+SELECT duration_in(state_agg(time, status), 'degraded') FROM devices;
+SELECT * FROM state_timeline((SELECT state_agg(time, status) FROM devices));
+
+-- Uptime / outages from heartbeats
+SELECT uptime(hb), downtime(hb), num_gaps(hb)
+FROM (SELECT heartbeat_agg(time, now() - INTERVAL '1 day', INTERVAL '1 day', INTERVAL '5 min') hb
+      FROM readings) t;
+SELECT "start", "end" FROM dead_ranges((SELECT heartbeat_agg(...)));
+
+-- OHLC candlesticks, and area under the curve
+SELECT open(candlestick_agg(time, price, volume)), close(candlestick_agg(time, price, volume));
+SELECT integral(time_weight('Linear', time, watts), 'hour') AS watt_hours FROM readings;
+```
+
 ## Function or procedure?
 
 A frequent source of errors. These need `CALL`, not `SELECT`:

@@ -15,5 +15,8 @@
 | 08 | [Capstone: a complete pipeline](../modules/08-capstone/README.md) | 12 min | Assemble everything into one production-shaped pipeline: ingest, rollup, compress, retain, query. |
 | 09 | [The index toolbox](../modules/09-indexes/README.md) | 12 min | Every index type you can put on a hypertable, what each one costs, and when it wins. |
 | 10 | [Roaring bitmaps](../modules/10-roaring-bitmaps/README.md) | 12 min | Store sets of ids as compressed bitmaps, then answer exact distinct, overlap and churn questions instantly. |
+| 11 | [Continuous aggregates in production](../modules/11-backfill-and-invalidation/README.md) | 11 min | The backfill trap: why a rollup can silently disagree with your raw data, and how to fix it. |
+| 12 | [Schema design & cardinality](../modules/12-schema-and-cardinality/README.md) | 11 min | The two modelling choices that decide your compression ratio and query speed: table shape and segmentby. |
+| 13 | [The analytics toolkit](../modules/13-analytics-toolkit/README.md) | 11 min | States, uptime, downsampling and OHLC: the hyperfunctions that answer questions plain SQL struggles with. |
 
 Run any module with `npm run lesson <id>`, for example `npm run lesson 04`.

@@ -21,7 +21,7 @@ Regenerate your bearings with `npm run lessons`.
 | Write data — upsert | 02, step 6 (including the unique-index rule) |
 | Query data — `SELECT`, time buckets | 02, steps 7–8 |
 | Query data — SkipScan | 07, step 5 |
-| Query data — advanced analytics | 06, all steps |
+| Query data — advanced analytics | 06, all steps; **13** for states, uptime, downsampling and OHLC |
 | Run queries from Tiger Console | Out of scope — Tiger Cloud UI. `npm run play` is the local equivalent. |
 
 ## Automation
@@ -41,6 +41,7 @@ Regenerate your bearings with `npm run lessons`.
 | Docs page | Covered in |
 | --- | --- |
 | Create a continuous aggregate | 03, steps 2–3 |
+| Refresh, invalidation and late-arriving data | **11**, all steps |
 | Refresh policies | 03, step 5 |
 | Real-time aggregation | 03, steps 6–7 |
 | Hierarchical continuous aggregates | 03, step 8 |
@@ -71,6 +72,14 @@ Regenerate your bearings with `npm run lessons`.
 | Improve storage performance using tablespaces | Out of scope — deployment/ops concern, not TimescaleDB-specific |
 | Automate tasks with triggers | Out of scope — standard PostgreSQL triggers, unchanged on hypertables |
 | Query external data sources with FDW | Out of scope — standard PostgreSQL FDW |
+
+## Schema design
+
+| Topic | Covered in |
+| --- | --- |
+| Choosing `segmentby` and cardinality | **12**, steps 1–6 |
+| Narrow vs wide table shape | 12, step 7 |
+| Where metadata belongs | 12, step 8 |
 
 ## Storage tiering
 

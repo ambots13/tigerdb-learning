@@ -50,6 +50,9 @@ Lessons are idempotent: re-run any module as many times as you like.
 | 08 | Capstone | 12 min | One complete pipeline: ingest → rollup → compress → retain → dashboard |
 | 09 | The index toolbox | 12 min | Partial, expression, covering, BRIN, GIN, hash, and columnstore sparse indexes |
 | 10 | Roaring bitmaps | 12 min | Exact distinct, retention and churn from compressed id sets |
+| 11 | Continuous aggregates in production | 11 min | The backfill trap, refresh watermarks, policy offsets |
+| 12 | Schema design & cardinality | 11 min | Choosing `segmentby`, narrow vs wide, where metadata belongs |
+| 13 | The analytics toolkit | 11 min | `lttb` downsampling, `state_agg`, `heartbeat_agg`, OHLC, `integral` |
 
 Full text for each module also lives in `modules/<name>/README.md` — see [docs/modules.md](docs/modules.md).
 
