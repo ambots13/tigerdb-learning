@@ -75,15 +75,97 @@ WHERE tablename = 'readings';`,
         );
         if (timings.before) {
           const speedup = timings.before / timed.ms;
-          print(
-            `\n  ${c.bold(c.green(`${speedup.toFixed(1)}x faster`))} ` +
-              c.gray('- and the gap widens as the table grows.'),
-          );
+          if (speedup >= 1.1) {
+            print(
+              `\n  ${c.bold(c.green(`${speedup.toFixed(1)}x faster`))} ` +
+                c.gray('- and the gap widens as the table grows.'),
+            );
+          } else {
+            print(
+              `\n  ${c.yellow('No speedup measured.')} ` +
+                c.gray('The index already existed from an earlier run, so step 2 was already using it. ' +
+                  'Run npm run seed and retry this module to see the real difference.'),
+            );
+          }
         }
       },
       takeaway:
         'Indexes are not free: they cost write throughput and disk. Add them for the filters you really run, ' +
         'and check pg_stat_user_indexes later to find ones nobody uses.',
+    },
+    {
+      title: 'SkipScan: DISTINCT without reading everything',
+      explain:
+        'Finding the distinct values of a column normally means scanning every row and de-duplicating. ' +
+        'SkipScan uses the index you just created to hop straight from one distinct value to the next, ' +
+        'reading a handful of index entries instead of half a million rows.\n\n' +
+        'It applies to SELECT DISTINCT and to "latest row per device" style queries.',
+      run: async ({ withClient, print, table, c, ms }) => {
+        const sql = 'SELECT DISTINCT sensor_id FROM readings';
+        const measure = async (client, enabled) => {
+          await client.query(`SET timescaledb.enable_skipscan = ${enabled ? 'on' : 'off'}`);
+          const plan = await client.query(`EXPLAIN (COSTS OFF) ${sql}`);
+          let best = Infinity;
+          for (let i = 0; i < 3; i += 1) {
+            const started = process.hrtime.bigint();
+            await client.query(sql);
+            best = Math.min(best, Number(process.hrtime.bigint() - started) / 1e6);
+          }
+          return { plan: plan.rows.map((r) => r['QUERY PLAN']), ms: best };
+        };
+
+        await withClient(async (client) => {
+          const off = await measure(client, false);
+          const on = await measure(client, true);
+          await client.query('RESET timescaledb.enable_skipscan');
+
+          print(`\n  ${c.bold('Without SkipScan:')}`);
+          for (const line of off.plan.slice(0, 4)) print('  ' + c.gray(line));
+          print(`\n  ${c.bold('With SkipScan:')}`);
+          for (const line of on.plan.slice(0, 5)) print('  ' + c.gray(line));
+          print('');
+          print(
+            table(
+              [
+                { skipscan: 'off', best_of_3: ms(off.ms) },
+                { skipscan: 'on', best_of_3: ms(on.ms) },
+              ],
+              ['skipscan', 'best_of_3'],
+            ),
+          );
+          if (on.ms > 0) {
+            print(
+              `\n  ${c.bold(c.green(`${(off.ms / on.ms).toFixed(1)}x faster`))} ` +
+                c.gray('- and it needs no query changes, only the right index.'),
+            );
+          }
+        });
+      },
+      takeaway:
+        'SkipScan is automatic when a suitable index exists. If you do not see it in a plan, the usual ' +
+        'cause is a missing index on the DISTINCT column.',
+    },
+    {
+      title: 'Constraints and schema changes',
+      explain:
+        'Hypertables accept ordinary DDL. Adding a column propagates to every chunk, including columnar ' +
+        'ones, and CHECK constraints behave normally.\n\n' +
+        'The one hypertable-specific rule is the one module 02 demonstrated: a UNIQUE index must include ' +
+        'the partitioning column, because uniqueness is enforced per chunk.',
+      sql: [
+        `ALTER TABLE readings ADD COLUMN IF NOT EXISTS firmware TEXT;`,
+        `ALTER TABLE readings ADD CONSTRAINT humidity_range CHECK (humidity IS NULL OR humidity BETWEEN 0 AND 100);`,
+        `SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'readings'
+ORDER BY ordinal_position;`,
+        `ALTER TABLE readings DROP CONSTRAINT humidity_range;`,
+        `ALTER TABLE readings DROP COLUMN firmware;`,
+      ],
+      note:
+        'Adding a CHECK constraint validates every existing chunk, so it fails if any row violates it - ' +
+        'which is exactly what you want. ADD COLUMN with a non-constant DEFAULT rewrites every chunk, so on ' +
+        'a large hypertable add the column first and backfill in batches instead.',
     },
     {
       title: 'Chunk interval: the one sizing decision',

@@ -41,12 +41,12 @@ Lessons are idempotent: re-run any module as many times as you like.
 | --- | --- | --- | --- |
 | 00 | Setup & orientation | 4 min | Verify the extensions; confirm it really is just PostgreSQL |
 | 01 | Hypertables & chunks | 8 min | Create a hypertable, watch chunks appear, read chunk exclusion in EXPLAIN |
-| 02 | Write & query | 9 min | Bulk loading, `time_bucket()`, `first()`/`last()`, joins to metadata |
+| 02 | Write & query | 9 min | Bulk loading, update/upsert/delete, `time_bucket()`, `first()`/`last()`, joins |
 | 03 | Continuous aggregates | 10 min | Incremental rollups, refresh policies, real-time aggregation, hierarchies |
 | 04 | Hypercore columnstore | 10 min | `segmentby`/`orderby`, chunk conversion, measured size and speed gains |
 | 05 | Jobs, policies & retention | 9 min | The job scheduler, all four built-in policies, `drop_chunks`, custom background jobs |
 | 06 | Hyperfunctions | 11 min | Gapfilling, `counter_agg`, `time_weight`, approximate percentiles |
-| 07 | Performance optimization | 10 min | Indexing for your access pattern, chunk sizing, chunk skipping |
+| 07 | Performance optimization | 10 min | Indexing, SkipScan, constraints, chunk sizing, chunk skipping |
 | 08 | Capstone | 12 min | One complete pipeline: ingest → rollup → compress → retain → dashboard |
 
 Full text for each module also lives in `modules/<name>/README.md` — see [docs/modules.md](docs/modules.md).
@@ -120,5 +120,7 @@ That is deliberate: the documentation cannot drift away from the code that actua
 
 ## Reference
 
+- [Coverage map](docs/coverage.md) — every Build docs page mapped to a module, including what is
+  deliberately out of scope and why
 - [SQL cheatsheet](docs/cheatsheet.md) — every function used in the lab, on one page
 - [Troubleshooting](docs/troubleshooting.md) — gotchas found while building this, with fixes

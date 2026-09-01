@@ -154,12 +154,35 @@ SELECT average(stats_agg(value)), stddev(stats_agg(value)), num_vals(stats_agg(v
 -- Index for the pattern you actually filter by (selective column first)
 CREATE INDEX ON readings (sensor_id, time DESC);
 
+-- A UNIQUE index must include the partitioning column (uniqueness is per chunk)
+CREATE UNIQUE INDEX ON readings (sensor_id, time);
+
+-- SkipScan: DISTINCT straight off the index, needs an index on that column
+EXPLAIN (COSTS OFF) SELECT DISTINCT sensor_id FROM readings;   -- Custom Scan (SkipScan)
+SET timescaledb.enable_skipscan = off;                          -- to compare
+
 -- Chunk skipping on a non-time column
 SET timescaledb.enable_chunk_skipping = on;     -- also set in postgresql.conf
 SELECT enable_chunk_skipping('readings', 'sensor_id');
 
 EXPLAIN (ANALYZE, COSTS OFF) SELECT ... ;       -- count the chunk scan nodes
 SELECT * FROM pg_stat_user_indexes WHERE relname LIKE 'readings%';
+```
+
+## Writing data
+
+```sql
+-- Upsert (requires a unique index containing the partitioning column)
+INSERT INTO readings (time, sensor_id, temperature)
+VALUES (now(), 1, 21.0)
+ON CONFLICT (sensor_id, time) DO UPDATE SET temperature = EXCLUDED.temperature;
+
+-- Always give UPDATE/DELETE a time predicate so chunks can be excluded
+UPDATE readings SET temperature = temperature + 0.5
+WHERE sensor_id = 1 AND time >= now() - INTERVAL '1 hour';
+
+-- For removing whole periods, prefer dropping chunks over DELETE
+SELECT drop_chunks('readings', older_than => INTERVAL '90 days');
 ```
 
 ## Function or procedure?

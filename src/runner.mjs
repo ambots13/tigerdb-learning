@@ -1,7 +1,7 @@
 // The lesson engine: walks a lesson's steps, runs SQL, shows results, and
 // grades the closing challenge.
 import readline from 'node:readline';
-import { query, timeQuery } from './db.mjs';
+import { query, timeQuery, withClient } from './db.mjs';
 import { c, heading, wrap, sqlBlock, table, bytes, ms, rule, callout } from './render.mjs';
 
 function createPrompt(auto) {
@@ -55,7 +55,7 @@ const print = (text = '') => console.log(text);
 
 /** Helpers handed to a step's custom run() function. */
 function makeContext() {
-  return { query, timeQuery, print, table, c, bytes, ms, wrap, heading, sqlBlock };
+  return { query, timeQuery, withClient, print, table, c, bytes, ms, wrap, heading, sqlBlock };
 }
 
 async function runStep(step, index, total, options, prompt) {
@@ -80,7 +80,17 @@ async function runStep(step, index, total, options, prompt) {
     let result;
     for (const statement of statements) {
       const started = Date.now();
-      result = await query(statement);
+      try {
+        result = await query(statement);
+      } catch (error) {
+        // Some steps deliberately run SQL that fails, to teach the error itself.
+        if (step.expectError) {
+          print(`\n  ${c.yellow('✗ expected error:')} ${error.message}`);
+          if (error.hint) print(`  ${c.gray(`HINT: ${error.hint}`)}`);
+          continue;
+        }
+        throw error;
+      }
       const elapsed = Date.now() - started;
 
       if (result.rows.length) {

@@ -61,6 +61,57 @@ FROM generate_series(now() - INTERVAL '1 day', now(), INTERVAL '1 minute') AS ts
       sql: `SELECT count(*) AS rows_for_sensor_99 FROM readings WHERE sensor_id = 99;`,
     },
     {
+      title: 'Updating and deleting rows',
+      explain:
+        'UPDATE and DELETE work exactly as in PostgreSQL, and are routed to the right chunks by the same ' +
+        'time predicate that speeds up SELECT. Time-series workloads rarely need them row by row, but ' +
+        'corrections and backfills do happen.',
+      sql: [
+        `UPDATE readings
+SET temperature = temperature + 0.5
+WHERE sensor_id = 99
+  AND time >= now() - INTERVAL '10 minutes';`,
+        `DELETE FROM readings
+WHERE sensor_id = 99
+  AND time < now() - INTERVAL '23 hours';`,
+      ],
+      note:
+        'Always include a time filter. Without one, an UPDATE or DELETE has to visit every chunk. For ' +
+        'removing whole periods, drop_chunks() in module 05 is far cheaper than DELETE, because it never ' +
+        'leaves dead rows behind for VACUUM to reclaim.',
+    },
+    {
+      title: 'Upserts need a unique index that includes the time column',
+      explain:
+        'ON CONFLICT needs a unique constraint, and on a hypertable a unique index must contain the ' +
+        'partitioning column. That is not an arbitrary rule: uniqueness is enforced per chunk, so without ' +
+        'the partitioning column the database cannot know which chunk to check.\n\n' +
+        'The first statement below deliberately fails so you can recognise the error.',
+      expectError: true,
+      sql: [
+        `DROP TABLE IF EXISTS upsert_demo CASCADE;`,
+        `CREATE TABLE upsert_demo (
+  time       TIMESTAMPTZ NOT NULL,
+  sensor_id  INT         NOT NULL,
+  reading    DOUBLE PRECISION
+) WITH (tsdb.hypertable, tsdb.partition_column = 'time');`,
+        `CREATE UNIQUE INDEX upsert_demo_bad ON upsert_demo (sensor_id);`,
+        `CREATE UNIQUE INDEX upsert_demo_ok ON upsert_demo (sensor_id, time);`,
+        `INSERT INTO upsert_demo (time, sensor_id, reading)
+VALUES ('2026-01-01 00:00+00', 1, 10.0)
+ON CONFLICT (sensor_id, time) DO UPDATE SET reading = EXCLUDED.reading
+RETURNING sensor_id, reading;`,
+        `INSERT INTO upsert_demo (time, sensor_id, reading)
+VALUES ('2026-01-01 00:00+00', 1, 99.9)
+ON CONFLICT (sensor_id, time) DO UPDATE SET reading = EXCLUDED.reading
+RETURNING sensor_id, reading;`,
+        `DROP TABLE upsert_demo CASCADE;`,
+      ],
+      takeaway:
+        'The same row was inserted then updated in place - the second statement returns 99.9. Use ' +
+        'ON CONFLICT DO NOTHING instead when replaying a feed where duplicates should simply be ignored.',
+    },
+    {
       title: 'time_bucket(): the workhorse',
       explain:
         'time_bucket() rounds each timestamp down to a fixed-width interval, so GROUP BY turns raw samples ' +

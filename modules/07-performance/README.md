@@ -48,7 +48,40 @@ _This step runs a timed comparison in the CLI; see the runner output._
 
 > **Takeaway** Indexes are not free: they cost write throughput and disk. Add them for the filters you really run, and check pg_stat_user_indexes later to find ones nobody uses.
 
-## 5. Chunk interval: the one sizing decision
+## 5. SkipScan: DISTINCT without reading everything
+
+Finding the distinct values of a column normally means scanning every row and de-duplicating. SkipScan uses the index you just created to hop straight from one distinct value to the next, reading a handful of index entries instead of half a million rows.
+
+It applies to SELECT DISTINCT and to "latest row per device" style queries.
+
+_This step runs a timed comparison in the CLI; see the runner output._
+
+> **Takeaway** SkipScan is automatic when a suitable index exists. If you do not see it in a plan, the usual cause is a missing index on the DISTINCT column.
+
+## 6. Constraints and schema changes
+
+Hypertables accept ordinary DDL. Adding a column propagates to every chunk, including columnar ones, and CHECK constraints behave normally.
+
+The one hypertable-specific rule is the one module 02 demonstrated: a UNIQUE index must include the partitioning column, because uniqueness is enforced per chunk.
+
+```sql
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS firmware TEXT;
+
+ALTER TABLE readings ADD CONSTRAINT humidity_range CHECK (humidity IS NULL OR humidity BETWEEN 0 AND 100);
+
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'readings'
+ORDER BY ordinal_position;
+
+ALTER TABLE readings DROP CONSTRAINT humidity_range;
+
+ALTER TABLE readings DROP COLUMN firmware;
+```
+
+> **Note** Adding a CHECK constraint validates every existing chunk, so it fails if any row violates it - which is exactly what you want. ADD COLUMN with a non-constant DEFAULT rewrites every chunk, so on a large hypertable add the column first and backfill in batches instead.
+
+## 7. Chunk interval: the one sizing decision
 
 The rule of thumb is that the chunks being actively written should fit comfortably in memory - roughly 25% of RAM for the most recent chunk across all hypertables. Too wide and inserts thrash the cache; too narrow and you drown in thousands of tiny chunks and planning overhead.
 
@@ -65,7 +98,7 @@ JOIN timescaledb_information.dimensions d
 WHERE d.dimension_number = 1;
 ```
 
-## 6. Changing the interval
+## 8. Changing the interval
 
 set_chunk_time_interval only affects chunks created from now on. Existing chunks keep their range, which is safe but means the change is gradual.
 
@@ -77,7 +110,7 @@ SELECT set_chunk_time_interval('readings', INTERVAL '1 day');
 
 > **Note** Changed and immediately changed back, so the rest of the lab keeps its 1 day chunks.
 
-## 7. Chunk skipping on a non-time column
+## 9. Chunk skipping on a non-time column
 
 Chunk exclusion normally works on time. Enabling chunk skipping makes TimescaleDB track the min and max of another column per chunk, so a filter on that column can rule out whole chunks too. It is most effective when the column is loosely correlated with time, such as an ever-increasing id.
 
@@ -88,13 +121,13 @@ SELECT enable_chunk_skipping('readings', 'sensor_id', if_not_exists => true);
 
 > **Note** The setting is a GUC. Set it in postgresql.conf (and restart) so background workers and other sessions see it too - a session-level SET only affects your own connection.
 
-## 8. Counting rows without counting rows
+## 10. Counting rows without counting rows
 
 count(*) reads every row. approximate_row_count uses planner statistics instead and answers instantly, which is what you want for a "roughly how much data is here?" panel.
 
 _This step runs a timed comparison in the CLI; see the runner output._
 
-## 9. A short checklist
+## 11. A short checklist
 
 In order of impact:
 1. Filter on the partitioning column so chunks can be excluded.

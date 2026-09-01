@@ -67,7 +67,58 @@ FROM generate_series(now() - INTERVAL '1 day', now(), INTERVAL '1 minute') AS ts
 SELECT count(*) AS rows_for_sensor_99 FROM readings WHERE sensor_id = 99;
 ```
 
-## 5. time_bucket(): the workhorse
+## 5. Updating and deleting rows
+
+UPDATE and DELETE work exactly as in PostgreSQL, and are routed to the right chunks by the same time predicate that speeds up SELECT. Time-series workloads rarely need them row by row, but corrections and backfills do happen.
+
+```sql
+UPDATE readings
+SET temperature = temperature + 0.5
+WHERE sensor_id = 99
+  AND time >= now() - INTERVAL '10 minutes';
+
+DELETE FROM readings
+WHERE sensor_id = 99
+  AND time < now() - INTERVAL '23 hours';
+```
+
+> **Note** Always include a time filter. Without one, an UPDATE or DELETE has to visit every chunk. For removing whole periods, drop_chunks() in module 05 is far cheaper than DELETE, because it never leaves dead rows behind for VACUUM to reclaim.
+
+## 6. Upserts need a unique index that includes the time column
+
+ON CONFLICT needs a unique constraint, and on a hypertable a unique index must contain the partitioning column. That is not an arbitrary rule: uniqueness is enforced per chunk, so without the partitioning column the database cannot know which chunk to check.
+
+The first statement below deliberately fails so you can recognise the error.
+
+```sql
+DROP TABLE IF EXISTS upsert_demo CASCADE;
+
+CREATE TABLE upsert_demo (
+  time       TIMESTAMPTZ NOT NULL,
+  sensor_id  INT         NOT NULL,
+  reading    DOUBLE PRECISION
+) WITH (tsdb.hypertable, tsdb.partition_column = 'time');
+
+CREATE UNIQUE INDEX upsert_demo_bad ON upsert_demo (sensor_id);
+
+CREATE UNIQUE INDEX upsert_demo_ok ON upsert_demo (sensor_id, time);
+
+INSERT INTO upsert_demo (time, sensor_id, reading)
+VALUES ('2026-01-01 00:00+00', 1, 10.0)
+ON CONFLICT (sensor_id, time) DO UPDATE SET reading = EXCLUDED.reading
+RETURNING sensor_id, reading;
+
+INSERT INTO upsert_demo (time, sensor_id, reading)
+VALUES ('2026-01-01 00:00+00', 1, 99.9)
+ON CONFLICT (sensor_id, time) DO UPDATE SET reading = EXCLUDED.reading
+RETURNING sensor_id, reading;
+
+DROP TABLE upsert_demo CASCADE;
+```
+
+> **Takeaway** The same row was inserted then updated in place - the second statement returns 99.9. Use ON CONFLICT DO NOTHING instead when replaying a feed where duplicates should simply be ignored.
+
+## 7. time_bucket(): the workhorse
 
 time_bucket() rounds each timestamp down to a fixed-width interval, so GROUP BY turns raw samples into a regular series. It is date_trunc() with arbitrary widths: 5 minutes, 90 seconds, 6 hours.
 
@@ -86,7 +137,7 @@ ORDER BY hour;
 
 > **Takeaway** Bucket width is an argument, not a schema decision. The same raw table serves 1-minute and 1-day rollups without any change.
 
-## 6. Change the width, change the resolution
+## 8. Change the width, change the resolution
 
 The identical query at 15-minute resolution. Only the first argument changed.
 
@@ -102,7 +153,7 @@ GROUP BY bucket
 ORDER BY bucket;
 ```
 
-## 7. first() and last(): value at the edge of a bucket
+## 9. first() and last(): value at the edge of a bucket
 
 PostgreSQL has no built-in "value of column A at the max of column B". first() and last() do exactly that, and are far cheaper than a self-join or a window function over the whole bucket.
 
@@ -121,7 +172,7 @@ ORDER BY hour;
 
 > **Takeaway** first()/last() are the open/close of a candlestick, the final battery level of an hour, the last known state of a device.
 
-## 8. Join the hypertable to plain metadata
+## 10. Join the hypertable to plain metadata
 
 A hypertable joins like any other table, including foreign keys. Aggregate the facts first, then join the small metadata table - that keeps the join input tiny.
 
@@ -138,7 +189,7 @@ GROUP BY s.site
 ORDER BY s.site;
 ```
 
-## 9. Latest reading per device
+## 11. Latest reading per device
 
 A very common time-series question. DISTINCT ON is the idiomatic PostgreSQL answer, and it works well here because the default time-descending index makes the ordering cheap.
 
@@ -153,7 +204,7 @@ WHERE time >= now() - INTERVAL '1 hour'
 ORDER BY sensor_id, time DESC;
 ```
 
-## 10. Clean up the extra sensor
+## 12. Clean up the extra sensor
 
 Remove the data added in this module so the shared dataset stays as the seed created it.
 

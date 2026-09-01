@@ -59,6 +59,16 @@ export async function query(sql, params = []) {
   };
 }
 
+/** Run several statements on one pooled connection, e.g. to use SET safely. */
+export async function withClient(fn) {
+  const client = await getPool().connect();
+  try {
+    return await fn(client);
+  } finally {
+    client.release();
+  }
+}
+
 /** Best-of-N timing, used so speed comparisons aren't dominated by cold cache. */
 export async function timeQuery(sql, runs = 3) {
   let best = Infinity;
