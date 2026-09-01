@@ -22,14 +22,22 @@ function label(node) {
 /** Depth-first flatten of the plan tree. */
 export function flattenPlan(node, depth = 0, out = []) {
   const loops = node['Actual Loops'] ?? 1;
-  const actual = node['Actual Rows'] === undefined ? null : Math.round(node['Actual Rows'] * loops);
-  const estimated = node['Plan Rows'] === undefined ? null : node['Plan Rows'];
+  // Loops = 0 means the node was planned but never executed (for example a
+  // branch a LIMIT stopped short of). Its "actual rows" is 0 by definition, so
+  // comparing it against the estimate would report a huge, meaningless error.
+  const neverExecuted = node['Actual Loops'] !== undefined && loops === 0;
+  const actual =
+    node['Actual Rows'] === undefined || neverExecuted
+      ? null
+      : Math.round(node['Actual Rows'] * loops);
 
   out.push({
     depth,
     label: label(node),
-    estimated,
+    estimated: node['Plan Rows'] === undefined ? null : node['Plan Rows'],
     actual,
+    neverExecuted,
+    loops,
     ms: node['Actual Total Time'] ?? null,
     hit: node['Shared Hit Blocks'] ?? 0,
     read: node['Shared Read Blocks'] ?? 0,
@@ -40,8 +48,9 @@ export function flattenPlan(node, depth = 0, out = []) {
   return out;
 }
 
-/** How far off was the estimate? 1 means perfect. */
+/** How far off was the estimate? 1 means perfect, null when not comparable. */
 export function misestimation(row) {
+  if (row.neverExecuted) return null;
   if (row.estimated === null || row.actual === null) return null;
   const hi = Math.max(row.estimated, row.actual);
   const lo = Math.max(Math.min(row.estimated, row.actual), 1);
@@ -79,13 +88,20 @@ export function renderPlan(nodes, { limit = 14, warnAt = 10 } = {}) {
     const indent = ' '.repeat(node.depth * 2);
     const ratio = misestimation(node);
     const ratioText =
-      ratio === null ? '-' : ratio < 2 ? `${ratio.toFixed(1)}x` : `${Math.round(ratio)}x`;
-    const colour = ratio !== null && ratio >= warnAt ? c.red : ratio !== null && ratio >= 3 ? c.yellow : c.gray;
+      node.neverExecuted
+        ? 'not run'
+        : ratio === null
+          ? '-'
+          : ratio < 2
+            ? `${ratio.toFixed(1)}x`
+            : `${Math.round(ratio)}x`;
+    const colour =
+      ratio !== null && ratio >= warnAt ? c.red : ratio !== null && ratio >= 3 ? c.yellow : c.gray;
     lines.push(
       '  ' +
         (indent + node.label).padEnd(width) +
         String(node.estimated ?? '-').padStart(9) +
-        String(node.actual ?? '-').padStart(10) +
+        (node.neverExecuted ? '-' : String(node.actual ?? '-')).padStart(10) +
         colour(ratioText.padStart(9)),
     );
   }

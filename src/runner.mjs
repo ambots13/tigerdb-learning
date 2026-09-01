@@ -278,7 +278,18 @@ export async function runLesson(lesson, options = {}) {
   try {
     if (lesson.setup) await lesson.setup(makeContext());
 
-    const from = options.from ? options.from - 1 : 0;
+    let from = 0;
+    if (options.from) {
+      if (!Number.isFinite(options.from) || options.from < 1 || options.from > steps.length) {
+        print(
+          `\n  ${c.yellow('!')} --from ${options.from} is outside this module ` +
+            `(1-${steps.length}). Starting from the beginning.\n`,
+        );
+      } else {
+        from = options.from - 1;
+      }
+    }
+
     for (let i = from; i < steps.length; i += 1) {
       const outcome = await runStep(steps[i], i, steps.length, options, prompt);
       if (outcome === 'quit') {

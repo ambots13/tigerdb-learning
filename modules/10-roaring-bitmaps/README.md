@@ -209,4 +209,4 @@ SELECT rb_cardinality(rb_build_agg(sensor_id)) AS sensors FROM readings WHERE ti
 
 ---
 
-That is the full lab. Run npm run lessons to revisit any module.
+Next: npm run lesson 11  (continuous aggregates in production)

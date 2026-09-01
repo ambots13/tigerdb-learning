@@ -5,13 +5,15 @@
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { query, assertConnection, config } from '../db.mjs';
+import { query, withClient, assertConnection, config } from '../db.mjs';
 import { loadAllLessons } from '../lessons.mjs';
 import { c } from '../render.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = Number(process.env.PORT || 4000);
+const MAX_ROWS = Number(process.env.PLAYGROUND_MAX_ROWS || 200);
+const STATEMENT_TIMEOUT_MS = Number(process.env.PLAYGROUND_TIMEOUT_MS || 30000);
 
 app.use(express.json());
 app.use(express.static(path.join(here, 'public')));
@@ -44,12 +46,24 @@ app.post('/api/query', async (req, res) => {
   if (!sql) return res.status(400).json({ error: 'No SQL provided.' });
   try {
     const started = Date.now();
-    const result = await query(sql);
+    // A runaway query would otherwise hold a pooled connection forever and
+    // eventually stall the whole playground.
+    const result = await withClient(async (client) => {
+      try {
+        await client.query(`SET statement_timeout = '${STATEMENT_TIMEOUT_MS}ms'`);
+        return await client.query(sql);
+      } finally {
+        await client.query('RESET statement_timeout').catch(() => {});
+      }
+    });
+    const last = Array.isArray(result) ? result[result.length - 1] : result;
+    const rows = last?.rows ?? [];
+    const fields = (last?.fields ?? []).map((f) => f.name);
     res.json({
       ms: Date.now() - started,
-      command: result.command,
-      fields: result.fields,
-      rows: result.rows.slice(0, 200).map((row) => {
+      command: last?.command ?? '',
+      fields,
+      rows: rows.slice(0, MAX_ROWS).map((row) => {
         const out = {};
         for (const key of Object.keys(row)) {
           const value = row[key];
@@ -64,11 +78,17 @@ app.post('/api/query', async (req, res) => {
         }
         return out;
       }),
-      truncated: result.rows.length > 200,
-      rowCount: result.rows.length,
+      truncated: rows.length > MAX_ROWS,
+      rowCount: rows.length,
     });
   } catch (error) {
-    res.status(400).json({ error: error.message, position: error.position ?? null });
+    const timedOut = error.code === '57014';
+    res.status(400).json({
+      error: timedOut
+        ? `Query cancelled after ${STATEMENT_TIMEOUT_MS / 1000}s. Add a time filter or a LIMIT, or raise PLAYGROUND_TIMEOUT_MS.`
+        : error.message,
+      position: error.position ?? null,
+    });
   }
 });
 

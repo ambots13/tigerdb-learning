@@ -224,4 +224,4 @@ SELECT count(*) AS points FROM unnest((SELECT lttb(time, temperature, 25) FROM r
 
 ---
 
-That is the full lab - 14 modules. Run npm run lessons to revisit any of them.
+Next: npm run lesson 14  (reading query plans)

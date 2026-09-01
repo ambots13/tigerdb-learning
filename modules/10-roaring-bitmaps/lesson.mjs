@@ -246,5 +246,5 @@ FROM pg_extension WHERE extname = 'timescaledb';`,
     hint: 'rb_cardinality(rb_build_agg(sensor_id)) with a time filter on readings.',
     solution: `SELECT rb_cardinality(rb_build_agg(sensor_id)) AS sensors FROM readings WHERE time >= now() - INTERVAL '24 hours';`,
   },
-  next: 'That is the full lab. Run npm run lessons to revisit any module.',
+  next: 'Next: npm run lesson 11  (continuous aggregates in production)',
 };

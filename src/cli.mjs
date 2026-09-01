@@ -23,9 +23,21 @@ async function showList() {
   console.log('');
   console.log(`  ${c.bold(c.cyan('TigerData Learning Lab'))}`);
   console.log(rule());
+  let track = null;
   for (const lesson of lessons) {
+    const current = Number(lesson.id) <= 8 ? 'Core track' : 'Advanced track';
+    if (current !== track) {
+      track = current;
+      console.log(
+        `  ${c.bold(c.yellow(track))} ${c.gray(
+          track === 'Core track'
+            ? '- start here, in order'
+            : '- standalone deep dives, any order',
+        )}`,
+      );
+    }
     console.log(
-      `  ${c.bold(c.yellow(lesson.id))}  ${c.bold(lesson.title.padEnd(30))} ${c.gray(lesson.duration || '')}`,
+      `  ${c.bold(c.yellow(lesson.id))}  ${c.bold(lesson.title.padEnd(36))} ${c.gray(lesson.duration || '')}`,
     );
     console.log(`      ${c.gray(lesson.summary)}`);
   }

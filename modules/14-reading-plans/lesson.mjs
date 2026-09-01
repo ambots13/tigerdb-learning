@@ -67,6 +67,11 @@ export default {
       takeaway:
         'A ratio near 1 means the planner understood your data. Ratios in the hundreds mean it did not, ' +
         'and no amount of indexing will help until the statistics do.',
+      note:
+        'Two things to read carefully. Nodes marked "not run" were planned but never executed - a LIMIT ' +
+        'was satisfied first - so they have no actual rows to compare. And under a LIMIT, a parent node ' +
+        'can look badly misestimated simply because execution stopped early, not because the estimate was ' +
+        'wrong.',
     },
     {
       title: 'Now break it on purpose',
@@ -347,5 +352,5 @@ $$;`,
     hint: "explain_json(q) -> 0 -> 'Plan' ->> 'Node Type'",
     solution: `SELECT explain_json('SELECT * FROM readings') -> 0 -> 'Plan' ->> 'Node Type' AS node_type;`,
   },
-  next: 'That is the full lab. Run npm run lessons to revisit any module.',
+  next: 'That is all 15 modules. Run npm run lessons to revisit any of them.',
 };

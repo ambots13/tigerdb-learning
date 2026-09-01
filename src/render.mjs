@@ -88,8 +88,12 @@ export function table(rows, fields, maxRows = 10) {
   );
 
   const pad = (text, width) => text + ' '.repeat(Math.max(0, width - visibleLength(text)));
+  // Slicing a coloured string by raw index can cut an ANSI escape in half, so
+  // strip colour before truncating an over-long cell.
   const clip = (text, width) =>
-    visibleLength(text) > width ? text.slice(0, width - 1) + '…' : pad(text, width);
+    visibleLength(text) > width
+      ? text.replace(/\u001b\[\d+m/g, '').slice(0, width - 1) + '…'
+      : pad(text, width);
 
   const header = '  ' + columns.map((col, i) => c.bold(pad(col, widths[i]))).join(c.gray(' │ '));
   const divider = '  ' + widths.map((w) => c.gray('─'.repeat(w))).join(c.gray('─┼─'));
@@ -105,20 +109,27 @@ export function table(rows, fields, maxRows = 10) {
 }
 
 export function bytes(value) {
+  if (value === null || value === undefined) return '-';
   const n = Number(value);
   if (!Number.isFinite(n)) return String(value);
+  const sign = n < 0 ? '-' : '';
   const units = ['B', 'kB', 'MB', 'GB', 'TB'];
-  let size = n;
+  let size = Math.abs(n);
   let unit = 0;
   while (size >= 1024 && unit < units.length - 1) {
     size /= 1024;
     unit += 1;
   }
-  return `${size < 10 && unit > 0 ? size.toFixed(1) : Math.round(size)} ${units[unit]}`;
+  return `${sign}${size < 10 && unit > 0 ? size.toFixed(1) : Math.round(size)} ${units[unit]}`;
 }
 
+// Lessons pass timings straight from EXPLAIN output, which is null for nodes
+// that never executed - so this must not throw on a missing value.
 export function ms(value) {
-  return value < 1 ? `${value.toFixed(2)} ms` : `${value.toFixed(1)} ms`;
+  if (value === null || value === undefined) return '-';
+  const n = Number(value);
+  if (!Number.isFinite(n)) return String(value);
+  return n < 1 ? `${n.toFixed(2)} ms` : `${n.toFixed(1)} ms`;
 }
 
 export function callout(label, text, color = c.yellow) {

@@ -55,6 +55,8 @@ _This step runs a timed comparison in the CLI; see the runner output._
 
 > **Takeaway** A ratio near 1 means the planner understood your data. Ratios in the hundreds mean it did not, and no amount of indexing will help until the statistics do.
 
+> **Note** Two things to read carefully. Nodes marked "not run" were planned but never executed - a LIMIT was satisfied first - so they have no actual rows to compare. And under a LIMIT, a parent node can look badly misestimated simply because execution stopped early, not because the estimate was wrong.
+
 ## 4. Now break it on purpose
 
 That plan looked healthy. To recognise an unhealthy one you need to see it, so here is the most common cause of bad estimates in PostgreSQL: correlated columns.
@@ -226,4 +228,4 @@ SELECT explain_json('SELECT * FROM readings') -> 0 -> 'Plan' ->> 'Node Type' AS 
 
 ---
 
-That is the full lab. Run npm run lessons to revisit any module.
+That is all 15 modules. Run npm run lessons to revisit any of them.

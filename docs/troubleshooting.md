@@ -154,5 +154,5 @@ deliberately noisy synthetic data; repetitive production telemetry does far bett
 ```bash
 npm run seed        # rebuild the dataset, drops lab objects
 npm run db:reset    # destroy the container entirely and start over
-npm run verify      # confirm all 9 modules still run end to end
+npm run verify      # confirm every module still runs end to end
 ```

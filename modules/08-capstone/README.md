@@ -230,4 +230,4 @@ SELECT vehicle_id, sum(delta(odo)) AS km FROM fleet_hourly WHERE bucket >= now()
 
 ---
 
-You have finished the lab. Run npm run play for a free-form SQL playground.
+Core track complete. The advanced track starts here: npm run lesson 09

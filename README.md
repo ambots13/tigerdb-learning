@@ -37,6 +37,8 @@ Lessons are idempotent: re-run any module as many times as you like.
 
 ## The modules
 
+**Core track (00–08)** — work through these in order; each builds on the last.
+
 | # | Module | Time | What you learn |
 | --- | --- | --- | --- |
 | 00 | Setup & orientation | 4 min | Verify the extensions; confirm it really is just PostgreSQL |
@@ -48,6 +50,11 @@ Lessons are idempotent: re-run any module as many times as you like.
 | 06 | Hyperfunctions | 11 min | Gapfilling, `counter_agg`, `time_weight`, approximate percentiles |
 | 07 | Performance optimization | 10 min | Indexing, SkipScan, constraints, chunk sizing, chunk skipping |
 | 08 | Capstone | 12 min | One complete pipeline: ingest → rollup → compress → retain → dashboard |
+
+**Advanced track (09–14)** — standalone deep dives, take them in any order.
+
+| # | Module | Time | What you learn |
+| --- | --- | --- | --- |
 | 09 | The index toolbox | 12 min | Partial, expression, covering, BRIN, GIN, hash, and columnstore sparse indexes |
 | 10 | Roaring bitmaps | 12 min | Exact distinct, retention and churn from compressed id sets |
 | 11 | Continuous aggregates in production | 11 min | The backfill trap, refresh watermarks, policy offsets |

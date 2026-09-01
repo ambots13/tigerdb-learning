@@ -212,5 +212,5 @@ ORDER BY bucket;`,
     hint: 'Wrap the lttb call in unnest(...) and count the rows.',
     solution: `SELECT count(*) AS points FROM unnest((SELECT lttb(time, temperature, 25) FROM readings WHERE sensor_id = 2 AND time >= now() - INTERVAL '24 hours'));`,
   },
-  next: 'That is the full lab - 14 modules. Run npm run lessons to revisit any of them.',
+  next: 'Next: npm run lesson 14  (reading query plans)',
 };
