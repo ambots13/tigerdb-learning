@@ -44,6 +44,15 @@ async function runSql(sql) {
     }
 
     const columns = data.fields.length ? data.fields : Object.keys(data.rows[0]);
+
+    // Query plans are text art: a table cell would destroy the indentation.
+    if (columns.length === 1 && columns[0] === 'QUERY PLAN') {
+      const pre = el('pre', 'sql plan');
+      pre.textContent = data.rows.map((row) => row['QUERY PLAN']).join('\n');
+      resultEl.append(pre);
+      return;
+    }
+
     const table = el('table');
     const thead = el('thead');
     const headRow = el('tr');
@@ -155,6 +164,12 @@ async function init() {
   if (lessons.length) renderLesson(lessons[0]);
 
   $('#run').addEventListener('click', () => runSql(editor.value));
+  $('#explain').addEventListener('click', () => {
+    const sql = editor.value.trim().replace(/;\s*$/, '');
+    if (!sql) return;
+    // Don't stack EXPLAIN on a statement that already has one.
+    runSql(/^explain/i.test(sql) ? sql : `EXPLAIN (ANALYZE, BUFFERS) ${sql}`);
+  });
   editor.addEventListener('keydown', (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
       event.preventDefault();

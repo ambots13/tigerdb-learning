@@ -167,7 +167,9 @@ LIMIT 5;`,
     {
       title: 'Tidy the test row',
       sql: [
-        `DELETE FROM readings WHERE energy_kwh = 1000 AND temperature = 99.9;`,
+        `DELETE FROM readings
+WHERE energy_kwh = 1000 AND temperature = 99.9
+  AND time >= now() - INTERVAL '1 hour';`,
         `CALL refresh_continuous_aggregate('readings_hourly', now() - INTERVAL '2 hours', NULL);`,
       ],
     },

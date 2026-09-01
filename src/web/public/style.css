@@ -109,6 +109,14 @@ pre.sql {
   white-space: pre;
 }
 
+pre.plan {
+  white-space: pre;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
 button {
   background: var(--accent);
   color: #1c1206;

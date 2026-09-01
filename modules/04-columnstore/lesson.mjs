@@ -224,7 +224,10 @@ RETURNING time, sensor_id, temperature;`,
     },
     {
       title: 'Tidy the backfilled row',
-      sql: `DELETE FROM readings WHERE energy_kwh = 500 AND temperature = 17.5;`,
+      sql: `DELETE FROM readings
+WHERE energy_kwh = 500 AND temperature = 17.5
+  AND time >= now() - INTERVAL '21 days'
+  AND time <  now() - INTERVAL '19 days';`,
     },
   ],
   challenge: {

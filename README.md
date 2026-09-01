@@ -53,6 +53,7 @@ Lessons are idempotent: re-run any module as many times as you like.
 | 11 | Continuous aggregates in production | 11 min | The backfill trap, refresh watermarks, policy offsets |
 | 12 | Schema design & cardinality | 11 min | Choosing `segmentby`, narrow vs wide, where metadata belongs |
 | 13 | The analytics toolkit | 11 min | `lttb` downsampling, `state_agg`, `heartbeat_agg`, OHLC, `integral` |
+| 14 | Reading query plans | 13 min | `EXPLAIN` end to end: estimates vs reality, scan and join nodes, `BUFFERS` |
 
 Full text for each module also lives in `modules/<name>/README.md` — see [docs/modules.md](docs/modules.md).
 
@@ -62,7 +63,8 @@ Full text for each module also lives in `modules/<name>/README.md` — see [docs
 npm run play    # http://localhost:4000
 ```
 
-Lesson text on the left, a SQL editor and result grid on the right. Load any lesson step into the
+Lesson text on the left, a SQL editor and result grid on the right. The **Explain** button wraps your
+query in `EXPLAIN (ANALYZE, BUFFERS)` and renders the plan. Load any lesson step into the
 editor with one click, then change it and see what happens. This is the fastest way to experiment
 beyond the scripted steps.
 

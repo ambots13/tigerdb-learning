@@ -195,9 +195,20 @@ ORDER BY sensor_id, time DESC;`,
     },
     {
       title: 'Clean up the extra sensor',
-      explain: 'Remove the data added in this module so the shared dataset stays as the seed created it.',
-      sql: `DELETE FROM readings WHERE sensor_id = 99 OR energy_kwh = 999.0;
-DELETE FROM sensors WHERE sensor_id = 99;`,
+      explain:
+        'Remove the data added in this module so the shared dataset stays as the seed created it.\n\n' +
+        'Note the time predicates. Without them these deletes would have to visit every chunk - and once ' +
+        'chunks are columnar (module 04), an unqualified DELETE has to decompress them all and will hit ' +
+        'the "tuple decompression limit exceeded" error.',
+      sql: [
+        `DELETE FROM readings
+WHERE sensor_id = 99
+  AND time >= now() - INTERVAL '2 days';`,
+        `DELETE FROM readings
+WHERE energy_kwh = 999.0
+  AND time >= now() - INTERVAL '1 hour';`,
+        `DELETE FROM sensors WHERE sensor_id = 99;`,
+      ],
     },
   ],
   challenge: {

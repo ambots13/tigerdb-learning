@@ -18,5 +18,6 @@
 | 11 | [Continuous aggregates in production](../modules/11-backfill-and-invalidation/README.md) | 11 min | The backfill trap: why a rollup can silently disagree with your raw data, and how to fix it. |
 | 12 | [Schema design & cardinality](../modules/12-schema-and-cardinality/README.md) | 11 min | The two modelling choices that decide your compression ratio and query speed: table shape and segmentby. |
 | 13 | [The analytics toolkit](../modules/13-analytics-toolkit/README.md) | 11 min | States, uptime, downsampling and OHLC: the hyperfunctions that answer questions plain SQL struggles with. |
+| 14 | [Reading query plans](../modules/14-reading-plans/README.md) | 13 min | Learn to read EXPLAIN like a report: what the planner guessed, what really happened, and why they differ. |
 
 Run any module with `npm run lesson <id>`, for example `npm run lesson 04`.

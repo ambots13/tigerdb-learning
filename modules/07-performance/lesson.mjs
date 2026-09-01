@@ -253,9 +253,10 @@ LIMIT 5;`,
   ],
   challenge: {
     prompt:
-      'Return the three largest chunks of readings by total size: columns chunk_name and total_bytes, largest first.',
-    hint: 'chunks_detailed_size() returns one row per chunk, including total_bytes.',
-    solution: `SELECT chunk_name, total_bytes FROM chunks_detailed_size('readings') ORDER BY total_bytes DESC LIMIT 3;`,
+      'Return the three largest chunks of readings by total size: columns chunk_name and total_bytes, ' +
+      'largest first, breaking ties by chunk_name ascending.',
+    hint: 'chunks_detailed_size() returns one row per chunk. Order by total_bytes DESC, then chunk_name.',
+    solution: `SELECT chunk_name, total_bytes FROM chunks_detailed_size('readings') ORDER BY total_bytes DESC, chunk_name LIMIT 3;`,
   },
   next: 'Next: npm run lesson 08  (capstone)',
 };

@@ -94,6 +94,21 @@ SELECT enable_chunk_skipping('readings', 'sensor_id');
 A session `SET` only affects your connection. For background workers, set it in `postgresql.conf` and
 restart.
 
+### `tuple decompression limit exceeded by operation`
+
+An `UPDATE` or `DELETE` matched rows in columnar chunks and had to decompress more tuples than
+`timescaledb.max_tuples_decompressed_per_dml_transaction` allows.
+
+Almost always the cause is a missing time predicate, which forces the statement to visit every chunk:
+
+```sql
+DELETE FROM readings WHERE sensor_id = 99;                      -- visits every chunk
+DELETE FROM readings WHERE sensor_id = 99
+  AND time >= now() - INTERVAL '2 days';                        -- visits one or two
+```
+
+To remove whole time ranges, use `drop_chunks()` instead of `DELETE` — it never decompresses anything.
+
 ### `cannot drop view readings_hourly because other objects depend on it`
 
 A hierarchical continuous aggregate is built on another one. Drop the dependent view first, or drop

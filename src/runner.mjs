@@ -2,6 +2,7 @@
 // grades the closing challenge.
 import readline from 'node:readline';
 import { query, timeQuery, withClient } from './db.mjs';
+import { explainAnalyze, renderPlan, worstEstimate, misestimation } from './explain.mjs';
 import { c, heading, wrap, sqlBlock, table, bytes, ms, rule, callout } from './render.mjs';
 
 function createPrompt(auto) {
@@ -55,7 +56,23 @@ const print = (text = '') => console.log(text);
 
 /** Helpers handed to a step's custom run() function. */
 function makeContext() {
-  return { query, timeQuery, withClient, print, table, c, bytes, ms, wrap, heading, sqlBlock };
+  return {
+    query,
+    timeQuery,
+    withClient,
+    explainAnalyze,
+    renderPlan,
+    worstEstimate,
+    misestimation,
+    print,
+    table,
+    c,
+    bytes,
+    ms,
+    wrap,
+    heading,
+    sqlBlock,
+  };
 }
 
 function normalize(value) {

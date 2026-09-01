@@ -67,6 +67,7 @@ Regenerate your bearings with `npm run lessons`.
 | Enforce constraints with unique indexes | 02, step 6 (the rule) and 07, step 6 (the reason) |
 | Improve query and upsert performance (secondary indexes) | 07, steps 3–5; 09, steps 2–7 |
 | Improve hypertable performance (chunk interval, chunk skipping) | 07, steps 7–9 |
+| Reading EXPLAIN / query plans | **14**, all steps |
 | Columnstore sparse indexes (bloom / minmax) | 09, steps 8–9 |
 | Handle semi-structured data with JSON | 00, step 2 and 09, step 6 (GIN on JSONB) |
 | Improve storage performance using tablespaces | Out of scope — deployment/ops concern, not TimescaleDB-specific |
