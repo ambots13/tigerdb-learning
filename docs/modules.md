@@ -13,5 +13,7 @@
 | 06 | [Hyperfunctions for analytics](../modules/06-hyperfunctions/README.md) | 11 min | Fill gaps, measure counters and rates, and compute percentiles without dragging raw rows around. |
 | 07 | [Performance optimization](../modules/07-performance/README.md) | 10 min | Index for your real access pattern, size chunks sensibly, and read plans with confidence. |
 | 08 | [Capstone: a complete pipeline](../modules/08-capstone/README.md) | 12 min | Assemble everything into one production-shaped pipeline: ingest, rollup, compress, retain, query. |
+| 09 | [The index toolbox](../modules/09-indexes/README.md) | 12 min | Every index type you can put on a hypertable, what each one costs, and when it wins. |
+| 10 | [Roaring bitmaps](../modules/10-roaring-bitmaps/README.md) | 12 min | Store sets of ids as compressed bitmaps, then answer exact distinct, overlap and churn questions instantly. |
 
 Run any module with `npm run lesson <id>`, for example `npm run lesson 04`.

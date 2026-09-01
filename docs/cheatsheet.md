@@ -185,6 +185,50 @@ WHERE sensor_id = 1 AND time >= now() - INTERVAL '1 hour';
 SELECT drop_chunks('readings', older_than => INTERVAL '90 days');
 ```
 
+## Indexes and bitmaps
+
+```sql
+-- Partial: only index the rows you actually search for
+CREATE INDEX ON readings (time DESC) WHERE battery < 70;
+
+-- Expression: index the computed value you filter on
+CREATE INDEX ON readings ((temperature::int));
+
+-- Covering: enables an Index Only Scan
+CREATE INDEX ON readings (sensor_id, time DESC) INCLUDE (temperature);
+
+-- BRIN: tiny index for time-correlated, append-only data
+CREATE INDEX ON readings USING brin (time);
+
+-- GIN: search inside JSONB
+CREATE INDEX ON events USING gin (payload);          -- or gin (payload jsonb_path_ops)
+
+-- Columnstore sparse indexes: configured, not created.
+-- bloom = equality on high-cardinality columns, minmax = ranges.
+ALTER TABLE spans SET (
+  timescaledb.enable_columnstore = true,
+  timescaledb.segmentby          = 'tenant_id',
+  timescaledb.orderby            = 'time DESC',
+  timescaledb.sparse_index       = 'bloom(trace_id), minmax(latency_ms)'
+);
+SET timescaledb.enable_sparse_index_bloom = off;      -- to compare in EXPLAIN
+```
+
+```sql
+-- Roaring bitmaps: exact, combinable sets of integers
+CREATE EXTENSION IF NOT EXISTS roaringbitmap;
+
+SELECT rb_cardinality(rb_build(ARRAY[1,2,3]));        -- count members
+SELECT rb_and(a, b), rb_or(a, b), rb_andnot(a, b);    -- intersect, union, difference
+
+-- Store a set per bucket in a continuous aggregate, then combine later
+CREATE MATERIALIZED VIEW visits_hourly WITH (timescaledb.continuous) AS
+SELECT time_bucket('1 hour', time) AS bucket, rb_build_agg(user_id) AS users
+FROM visits GROUP BY bucket;
+
+SELECT rb_cardinality(rb_or_agg(users)) FROM visits_hourly;   -- exact uniques, any range
+```
+
 ## Function or procedure?
 
 A frequent source of errors. These need `CALL`, not `SELECT`:

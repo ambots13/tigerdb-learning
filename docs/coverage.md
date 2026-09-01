@@ -60,13 +60,14 @@ Regenerate your bearings with `npm run lessons`.
 
 | Docs page | Covered in |
 | --- | --- |
-| Accelerate queries using indexes | 07, steps 1–4 |
+| Accelerate queries using indexes | 07, steps 1–4; **09** covers every index type in depth |
 | Ensure data integrity with constraints | 07, step 6 |
 | Alter and update table schemas | 07, step 6 |
 | Enforce constraints with unique indexes | 02, step 6 (the rule) and 07, step 6 (the reason) |
-| Improve query and upsert performance (secondary indexes) | 07, steps 3–5 |
+| Improve query and upsert performance (secondary indexes) | 07, steps 3–5; 09, steps 2–7 |
 | Improve hypertable performance (chunk interval, chunk skipping) | 07, steps 7–9 |
-| Handle semi-structured data with JSON | 00, step 2 shows `JSONB`; it behaves identically on a hypertable |
+| Columnstore sparse indexes (bloom / minmax) | 09, steps 8–9 |
+| Handle semi-structured data with JSON | 00, step 2 and 09, step 6 (GIN on JSONB) |
 | Improve storage performance using tablespaces | Out of scope — deployment/ops concern, not TimescaleDB-specific |
 | Automate tasks with triggers | Out of scope — standard PostgreSQL triggers, unchanged on hypertables |
 | Query external data sources with FDW | Out of scope — standard PostgreSQL FDW |
@@ -87,6 +88,10 @@ Regenerate your bearings with `npm run lessons`.
 
 ## Known limits of this lab
 
+- **Roaring bitmaps in the engine itself.** Module 10 uses the `roaringbitmap` extension, which works
+  today. TimescaleDB's own columnstore sparse indexes accept `bloom` and `minmax` only — asking for
+  `sparse_index = 'roaring(col)'` fails with *unrecognized sparse index type* on 2.29.2. Module 10's
+  last step shows how to re-test that on a newer build.
 - Runs against **self-hosted TimescaleDB in Docker**, so Tiger Cloud features (tiering, Console, MCP,
   read replicas, forking) are out of reach by design. Point `.env` at a Tiger Cloud service and the
   lessons still run.

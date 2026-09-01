@@ -48,6 +48,8 @@ Lessons are idempotent: re-run any module as many times as you like.
 | 06 | Hyperfunctions | 11 min | Gapfilling, `counter_agg`, `time_weight`, approximate percentiles |
 | 07 | Performance optimization | 10 min | Indexing, SkipScan, constraints, chunk sizing, chunk skipping |
 | 08 | Capstone | 12 min | One complete pipeline: ingest → rollup → compress → retain → dashboard |
+| 09 | The index toolbox | 12 min | Partial, expression, covering, BRIN, GIN, hash, and columnstore sparse indexes |
+| 10 | Roaring bitmaps | 12 min | Exact distinct, retention and churn from compressed id sets |
 
 Full text for each module also lives in `modules/<name>/README.md` — see [docs/modules.md](docs/modules.md).
 
