@@ -8,10 +8,46 @@ function createPrompt(auto) {
   if (auto) {
     return { ask: async () => '', close() {} };
   }
+
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const pending = [];
+  const waiting = [];
+  let closed = false;
+
+  // Lines are queued as they arrive rather than read via rl.question(), because
+  // piped input is consumed in one burst and readline then closes, which would
+  // otherwise discard every answer after the first.
+  rl.on('line', (line) => {
+    if (waiting.length) waiting.shift()(line);
+    else pending.push(line);
+  });
+  rl.on('close', () => {
+    closed = true;
+    while (waiting.length) waiting.shift()('');
+  });
+  rl.on('SIGINT', () => {
+    rl.close();
+    process.exit(0);
+  });
+
   return {
-    ask: (question) => new Promise((resolve) => rl.question(question, resolve)),
-    close: () => rl.close(),
+    ask: (question) => {
+      process.stdout.write(question);
+      if (pending.length) {
+        const line = pending.shift();
+        process.stdout.write(`${line}\n`);
+        return Promise.resolve(line);
+      }
+      // At EOF, behave as if the user pressed Enter instead of throwing.
+      if (closed) {
+        process.stdout.write('\n');
+        return Promise.resolve('');
+      }
+      return new Promise((resolve) => waiting.push(resolve));
+    },
+    close: () => {
+      if (!closed) rl.close();
+    },
   };
 }
 
