@@ -97,7 +97,8 @@ WHERE user_view_name = 'backfill_hourly';`,
       title: 'Fix it with a targeted refresh',
       explain:
         'Refresh only the window the late data landed in. This is cheap and precise; refreshing everything ' +
-        'would re-materialize five days to correct one hour.',
+        'asks the invalidation-driven refresh machinery to inspect a much broader range, even though it may ' +
+        'only recompute invalidated buckets. Only complete buckets contained by the window are eligible.',
       sql: [
         `CALL refresh_continuous_aggregate('backfill_hourly', now() - INTERVAL '4 days', now() - INTERVAL '2 days');`,
         `SELECT
@@ -112,8 +113,8 @@ WHERE user_view_name = 'backfill_hourly';`,
       title: 'Make the policy cover your late-arrival window',
       explain:
         'start_offset is how far back each scheduled refresh reaches. It must be at least as long as your ' +
-        'worst realistic late arrival, or the policy will keep skipping past the damage.\n\n' +
-        'The cost is real: a wider window re-materializes more buckets on every run, so pick it from ' +
+        'target late-arrival horizon unless another policy or manual refresh covers older data.\n\n' +
+        'A wider window inspects a broader range and can process more invalidations, so pick it from ' +
         'measured behaviour rather than optimism.',
       sql: `SELECT add_continuous_aggregate_policy('backfill_hourly',
   start_offset      => INTERVAL '7 days',
@@ -122,8 +123,8 @@ WHERE user_view_name = 'backfill_hourly';`,
   if_not_exists     => true
 ) AS job_id;`,
       takeaway:
-        'Rule of thumb: start_offset larger than your late-arrival window, and end_offset at least one ' +
-        'bucket so you never materialize a bucket that is still filling.',
+        'Choose start_offset from measured lateness. Choose end_offset so it falls inside the current ' +
+        'bucket when you want that still-filling bucket excluded; it need not universally equal a full bucket.',
     },
     {
       title: 'Measure lateness instead of guessing it',

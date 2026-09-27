@@ -22,8 +22,8 @@ FROM pg_extension
 WHERE extname IN ('timescaledb', 'timescaledb_toolkit')
 ORDER BY extname;`,
       takeaway:
-        'Two extensions do all the work. timescaledb adds hypertables, policies and the columnstore; ' +
-        'timescaledb_toolkit adds the hyperfunctions you will meet in module 06.',
+        'timescaledb adds hypertables, policies, the columnstore, and gapfilling functions. ' +
+        'timescaledb_toolkit separately adds two-step analytical aggregates such as counter_agg and time_weight.',
     },
     {
       title: 'Ordinary SQL still behaves ordinarily',

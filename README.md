@@ -78,10 +78,16 @@ chat whose tutor receives the selected lesson's explanation, SQL, objectives, an
 so questions stay grounded in what you are learning.
 
 Use the **Learning mode** selector to switch to **Hardcore** without changing the standard course.
-Hardcore Mode expands every module with prerequisites, a deeper mental model, predict-before-running
-prompts, controlled experiments, closed-book retrieval checks, two additional SQL drills, common
-failure modes, and a final transfer challenge. Mastery progress is stored locally in your browser.
-Only mark an activity complete when you can reproduce and explain it without the reference solution.
+Hardcore Mode turns every module into a 2–4 hour engineering intensive. Each module includes a
+diagnostic, deep theory, guided analysis, controlled experiments, failure investigation, independent
+practice, a production scenario, closed-book assessment, and review. Activities label claims as
+**documented**, **measured**, or **recommendation**, and link documented behavior to primary sources.
+Mastery progress is stored locally in your browser. Only mark an activity complete after recording
+the required evidence and reproducing the result without the reference solution.
+
+The default Docker image is pinned to PostgreSQL 17.11 and TimescaleDB 2.29.2 so version-sensitive
+course behavior stays reproducible. Set `TIGERLAB_IMAGE` if you intentionally want to test another
+release, and verify extension versions in module 00 before interpreting results.
 
 Every lesson SQL snippet is also a guided reading surface. Hover a keyword, function, table, column,
 literal, or operator to see what it does and why it appears in that example. Keyboard users can

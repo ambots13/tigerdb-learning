@@ -37,11 +37,16 @@ DROP MATERIALIZED VIEW IF EXISTS readings_daily CASCADE;
 DROP MATERIALIZED VIEW IF EXISTS readings_hourly CASCADE;
 
 CREATE MATERIALIZED VIEW readings_hourly
-WITH (timescaledb.continuous) AS
+WITH (
+  timescaledb.continuous,
+  timescaledb.materialized_only = false
+) AS
 SELECT
   time_bucket('1 hour', time) AS bucket,
   sensor_id,
   avg(temperature)  AS avg_temp,
+  sum(temperature)  AS temp_sum,
+  count(temperature) AS temp_samples,
   min(temperature)  AS min_temp,
   max(temperature)  AS max_temp,
   avg(humidity)     AS avg_humidity,
@@ -51,14 +56,18 @@ GROUP BY bucket, sensor_id
 WITH NO DATA;
 ```
 
-> **Takeaway** Only aggregates that can be combined incrementally are allowed. avg, min, max, count and sum are fine; something like a median over the whole range is not.
+> **Takeaway** Modern finalized continuous aggregates support a broad range of PostgreSQL aggregates. For hierarchical rollups, retain composable state such as sum and count when weighting matters.
 
 ## 3. Fill it in
 
-refresh_continuous_aggregate materializes a time range. NULL, NULL means "everything". Note it is a CALL, not a SELECT - it is a procedure, because it commits work in batches rather than holding one long transaction.
+refresh_continuous_aggregate materializes complete buckets in a requested range. This bounded refresh deliberately stops one hour ago, preserving a live tail after the watermark. It is invoked with CALL because the API is a PostgreSQL procedure.
 
 ```sql
-CALL refresh_continuous_aggregate('readings_hourly', NULL, NULL);
+CALL refresh_continuous_aggregate(
+  'readings_hourly',
+  now() - INTERVAL '30 days',
+  now() - INTERVAL '1 hour'
+);
 ```
 
 ## 4. Same answer, different cost
@@ -86,7 +95,7 @@ SELECT add_continuous_aggregate_policy('readings_hourly',
 
 ## 6. Real-time aggregation
 
-By default a continuous aggregate is materialized_only = false, meaning a query against it UNIONs the materialized buckets with a live aggregate over any raw rows that are newer than the last refresh. You get fresh answers without waiting for the policy.
+Since TimescaleDB 2.13, continuous aggregates are materialized-only by default. This lesson opted in with materialized_only = false, so queries combine stored buckets before the watermark with a live aggregate over newer raw rows.
 
 ```sql
 SELECT view_name, materialized_only, compression_enabled
@@ -120,8 +129,10 @@ WITH (timescaledb.continuous) AS
 SELECT
   time_bucket('1 day', bucket) AS day,
   sensor_id,
-  avg(avg_temp) AS avg_temp,
+  sum(temp_sum) / NULLIF(sum(temp_samples), 0) AS avg_temp,
   max(max_temp) AS max_temp,
+  sum(temp_sum) AS temp_sum,
+  sum(temp_samples) AS temp_samples,
   sum(samples)  AS samples
 FROM readings_hourly
 GROUP BY day, sensor_id
@@ -136,7 +147,7 @@ ORDER BY day DESC
 LIMIT 5;
 ```
 
-> **Note** Averaging an average is only correct when every bucket has the same weight. If buckets can differ in sample count, carry sum() and count() up the hierarchy and divide at the end.
+> **Note** Averaging averages is only correct when every bucket has equal weight. This definition carries temperature sum and count upward and divides only after the rollup.
 
 ## 9. Tidy the test row
 

@@ -124,7 +124,7 @@ WHERE time >= now() - INTERVAL '7 days';
 
 ## 7. stats_agg: one pass, several statistics
 
-stats_agg computes a summary in a single pass, then accessors pull individual numbers out of it. This beats calling avg, stddev and variance separately, each of which rescans the input.
+stats_agg computes a summary in a single pass, then accessors pull individual numbers out of it. PostgreSQL can compute several ordinary aggregates in one scan too; the advantage here is a reusable intermediate state that supports many accessors and can be stored and rolled up.
 
 ```sql
 SELECT
@@ -141,7 +141,7 @@ ORDER BY s.site;
 
 ## 8. Why these compose so well with continuous aggregates
 
-Aggregate types such as percentile_agg, stats_agg, counter_agg and time_weight are values you can store. Materialise the aggregate once per hour, then roll hours up into days later - without ever revisiting the raw rows. That is the pattern behind fast historical dashboards.
+Aggregate types such as percentile_agg, stats_agg, counter_agg and time_weight are values you can store. Materialise the aggregate once per hour, then combine compatible states with their rollup() aggregate before applying an accessor. Storing states alone does not make scalar results additive.
 
 ```sql
 SELECT

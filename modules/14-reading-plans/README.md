@@ -28,7 +28,7 @@ WHERE sensor_id = 5
 GROUP BY sensor_id;
 ```
 
-> **Note** cost=X..Y is not milliseconds. It is an arbitrary unit where 1.0 is roughly one sequential page read. Only ratios between costs mean anything.
+> **Note** cost=X..Y is not milliseconds. It is a dimensionless model combining configured page and CPU cost constants; its scale is anchored by seq_page_cost, which defaults to 1.0.
 
 ## 2. The same plan, with reality attached
 
@@ -53,7 +53,7 @@ So the first thing to check in any plan is estimated versus actual rows, node by
 
 _This step runs a timed comparison in the CLI; see the runner output._
 
-> **Takeaway** A ratio near 1 means the planner understood your data. Ratios in the hundreds mean it did not, and no amount of indexing will help until the statistics do.
+> **Takeaway** A ratio near 1 means the planner understood your data. Ratios in the hundreds mean it did not, so statistics deserve investigation before changing physical design. Indexes and other bottlenecks can still matter independently.
 
 > **Note** Two things to read carefully. Nodes marked "not run" were planned but never executed - a LIMIT was satisfied first - so they have no actual rows to compare. And under a LIMIT, a parent node can look badly misestimated simply because execution stopped early, not because the estimate was wrong.
 
@@ -87,7 +87,7 @@ WHERE tablename LIKE '_hyper%'
 LIMIT 6;
 ```
 
-> **Note** correlation near 1 means the column is stored in sorted order - that is why BRIN works on time columns, and why the planner trusts index scans on them.
+> **Note** correlation ranges from -1 to +1. Values near either extreme indicate strong physical ordering (forward or reverse), while values near zero indicate weak correlation.
 
 ## 6. Why did it pick that scan?
 
@@ -154,17 +154,17 @@ WHERE r.time >= now() - INTERVAL '1 day'
 GROUP BY s.site;
 ```
 
-> **Note** If you ever see a Nested Loop whose inner side runs millions of loops, that is the bug. It almost always traces back to a row estimate that was far too low.
+> **Note** High loop counts are a prompt to inspect total rows, buffers, time, and memoization, not proof of a bug. Cheap indexed inner probes can make a nested loop the right plan.
 
 ## 10. BUFFERS: the most underused option
 
-Timings vary with cache state, which makes them a shaky basis for comparison. Buffer counts do not: "shared hit" means the page was already in memory, "shared read" means it came from disk.
+Timings and the hit/read split both vary with cache state: "shared hit" means a block was found in PostgreSQL shared buffers, while "shared read" means it had to be read into them.
 
-Comparing two queries by buffers tells you which does less work, independent of how warm the cache happened to be.
+Total logical blocks touched is often more stable than elapsed time, but compare repeated runs and record cache conditions rather than treating BUFFERS as cache-independent.
 
 _This step runs a timed comparison in the CLI; see the runner output._
 
-> **Takeaway** When someone says a query is slow, ask for EXPLAIN (ANALYZE, BUFFERS). Timings start arguments; buffer counts end them.
+> **Takeaway** When someone says a query is slow, ask for EXPLAIN (ANALYZE, BUFFERS), then interpret timing and I/O together with rows, loops, cache state, and temp activity.
 
 ## 11. A tool you can keep
 
@@ -190,14 +190,14 @@ SELECT
     AS estimated_rows;
 ```
 
-> **Note** The function is left installed after this module - it is a genuinely useful thing to have around. Drop it with DROP FUNCTION explain_json(text);
+> **Note** This helper concatenates and executes SQL, so it is only for trusted lab input. Do not expose it as an application API. Drop it with DROP FUNCTION explain_json(text);
 
 ## 12. A checklist for a slow query
 
 In order:
 1. EXPLAIN (ANALYZE, BUFFERS) - never guess.
 2. Compare estimated and actual rows at every node. Fix statistics before touching indexes.
-3. Find the node with the largest actual time, and read inwards from it.
+3. Remember parent times include child work; compare parent/child rows, loops, buffers, and time.
 4. Look for "Rows Removed by Filter" - work done and thrown away.
 5. Count the chunks in the plan; add a time predicate if there are too many.
 6. Check for Nested Loops with high loop counts.

@@ -14,8 +14,8 @@ export default {
       explain:
         'A chart 800 pixels wide cannot show 500,000 points. Naive approaches - every Nth row, or an ' +
         'average per bucket - flatten exactly the spikes you are looking for.\n\n' +
-        'lttb (Largest Triangle Three Buckets) picks the points that preserve the visual shape, keeping ' +
-        'peaks and troughs that averaging would erase.',
+        'lttb (Largest Triangle Three Buckets) selects source points to approximate the visual shape. Its ' +
+        'resolution is a target, not a guarantee of an exact output count or preservation of every extreme.',
       sql: `SELECT count(*) AS points_returned
 FROM unnest((
   SELECT lttb(time, temperature, 100)
@@ -42,8 +42,8 @@ FROM unnest((
 ORDER BY time
 LIMIT 8;`,
       note:
-        'Compare the min and max of the downsampled series with the raw min and max - a good downsampler ' +
-        'preserves the extremes.',
+        'Compare sampled and raw extrema as an empirical quality check. LTTB does not guarantee that the ' +
+        'global minimum and maximum are selected.',
     },
     {
       title: 'Did downsampling preserve the extremes?',
@@ -62,8 +62,8 @@ SELECT
   (SELECT round(max(temperature)::numeric, 2) FROM readings
     WHERE sensor_id = 1 AND time >= now() - INTERVAL '2 days') AS raw_max;`,
       takeaway:
-        'The sampled extremes sit at or very near the raw extremes, on 5% of the points. That is the ' +
-        'difference between lttb and a naive average.',
+        'Interpret the measured difference rather than assuming an invariant. LTTB optimizes visual ' +
+        'similarity and can omit a global extreme.',
     },
     {
       title: 'state_agg: how long was it in each state?',
@@ -188,11 +188,11 @@ LIMIT 6;`,
         'Summing temperature x interval by hand gets the edges wrong. This does not.',
     },
     {
-      title: 'These all combine across buckets',
+      title: 'Which states combine across buckets',
       explain:
-        'Like the aggregates in module 06, these are storable values. Materialise state_agg or ' +
-        'candlestick_agg per hour in a continuous aggregate, then roll hours into days later with the ' +
-        'matching rollup function - without revisiting raw rows.',
+        'state_agg, heartbeat_agg, candlestick, and time_weight are documented two-step aggregates whose ' +
+        'states can be combined with matching rollup functions. LTTB is a downsampling aggregate returning ' +
+        'a timevector and should not be presented as the same rollup pattern.',
       sql: `SELECT
   time_bucket('12 hours', time) AS bucket,
   duration_in(state_agg(time, CASE WHEN battery > 75 THEN 'ok' ELSE 'low' END), 'low') AS time_low
@@ -207,7 +207,7 @@ ORDER BY bucket;`,
   ],
   challenge: {
     prompt:
-      'Using lttb, downsample sensor 2 temperature over the last 24 hours to exactly 25 points, and return ' +
+      'Using lttb, target approximately 25 points for sensor 2 temperature over the last 24 hours, and return ' +
       'the number of points in a column named points.',
     hint: 'Wrap the lttb call in unnest(...) and count the rows.',
     solution: `SELECT count(*) AS points FROM unnest((SELECT lttb(time, temperature, 25) FROM readings WHERE sensor_id = 2 AND time >= now() - INTERVAL '24 hours'));`,

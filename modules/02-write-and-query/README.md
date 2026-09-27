@@ -155,7 +155,7 @@ ORDER BY bucket;
 
 ## 9. first() and last(): value at the edge of a bucket
 
-PostgreSQL has no built-in "value of column A at the max of column B". first() and last() do exactly that, and are far cheaper than a self-join or a window function over the whole bucket.
+PostgreSQL has no built-in "value of column A at the max of column B". first() and last() do exactly that during grouped aggregation. On rowstore data they scan each group rather than using an index, so compare alternatives when the edge value is the only result you need.
 
 ```sql
 SELECT
@@ -191,7 +191,7 @@ ORDER BY s.site;
 
 ## 11. Latest reading per device
 
-A very common time-series question. DISTINCT ON is the idiomatic PostgreSQL answer, and it works well here because the default time-descending index makes the ordering cheap.
+A very common time-series question. DISTINCT ON is the idiomatic PostgreSQL answer, and it works with any hypertable. For this ordering at scale, the matching rowstore index is (sensor_id, time DESC), which module 07 adds and measures.
 
 ```sql
 SELECT DISTINCT ON (sensor_id)

@@ -75,7 +75,7 @@ SELECT add_retention_policy('scratch_events',
 ) AS job_id;
 ```
 
-> **Takeaway** Dropping a chunk is a DROP TABLE on a small table: it is close to instant and returns the space immediately, unlike DELETE which leaves dead rows for VACUUM.
+> **Takeaway** Dropping a chunk avoids row-by-row deletion and subsequent vacuum cleanup. Completion time and space reclamation still depend on locks, dependencies, object size, and the storage system.
 
 ## 5. Run the policy now instead of waiting
 
@@ -93,9 +93,9 @@ SELECT show_chunks('scratch_events', older_than => INTERVAL '20 days') AS would_
 
 > **Note** Swap show_chunks for drop_chunks with the same arguments to actually remove them.
 
-## 7. The fourth built-in policy: reordering
+## 7. Another policy family: reordering
 
-TimescaleDB ships four built-in policies: refresh (module 03), columnstore (module 04), retention (above), and reorder. A reorder policy rewrites each completed chunk in the order of an index you choose, so rows you read together end up stored together. It is the cheaper alternative to CLUSTER, because it works chunk by chunk and does not hold an exclusive lock on the whole table.
+This course covers refresh, columnstore, retention, and reorder policies, but that list is not an exhaustive product catalog. A reorder policy rewrites each completed chunk in the order of an index you choose, so rows you read together end up stored together. It is the cheaper alternative to CLUSTER, because it works chunk by chunk and does not hold an exclusive lock on the whole table.
 
 ```sql
 CREATE INDEX IF NOT EXISTS scratch_events_source_time_idx

@@ -4,7 +4,7 @@
 set -euo pipefail
 
 NAME="${TIGERLAB_CONTAINER:-tigerdb-lab}"
-IMAGE="${TIGERLAB_IMAGE:-timescale/timescaledb-ha:pg17}"
+IMAGE="${TIGERLAB_IMAGE:-timescale/timescaledb-ha:pg17.11-ts2.29.2}"
 PORT="${PGPORT:-5433}"
 PASSWORD="${PGPASSWORD:-tigerlab}"
 DATABASE="${PGDATABASE:-tigerlab}"

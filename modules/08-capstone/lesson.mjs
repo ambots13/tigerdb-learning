@@ -14,7 +14,7 @@ export default {
       explain:
         'A fleet of delivery vehicles reports speed, fuel level and an odometer reading every 10 seconds. ' +
         'You need: live status per vehicle, an hourly dashboard covering months of history, and a storage ' +
-        'plan that keeps costs flat.\n\n' +
+        'plan that bounds raw-data growth.\n\n' +
         'That maps onto four decisions: chunk interval, rollup definition, when to compress, and when to ' +
         'delete. Everything else follows.',
       sql: `SELECT 'ready' AS status;`,
@@ -75,11 +75,16 @@ FROM fleet_telemetry;`,
         're-derived later without the raw rows.',
       sql: [
         `CREATE MATERIALIZED VIEW fleet_hourly
-WITH (timescaledb.continuous) AS
-SELECT
+        WITH (
+          timescaledb.continuous,
+          timescaledb.materialized_only = false
+        ) AS
+        SELECT
   time_bucket('1 hour', time) AS bucket,
   vehicle_id,
   avg(speed_kph)              AS avg_speed,
+  sum(speed_kph)              AS speed_sum,
+  count(speed_kph)            AS speed_samples,
   max(speed_kph)              AS max_speed,
   last(fuel_pct, time)        AS fuel_at_end,
   counter_agg(time, odometer_km) AS odo,
@@ -87,7 +92,11 @@ SELECT
 FROM fleet_telemetry
 GROUP BY bucket, vehicle_id
 WITH NO DATA;`,
-        `CALL refresh_continuous_aggregate('fleet_hourly', NULL, NULL);`,
+        `CALL refresh_continuous_aggregate(
+  'fleet_hourly',
+  now() - INTERVAL '14 days',
+  now() - INTERVAL '1 hour'
+);`,
         `SELECT count(*) AS materialized_buckets FROM fleet_hourly;`,
       ],
     },
@@ -95,7 +104,8 @@ WITH NO DATA;`,
       title: 'Step 4 - keep the rollup fresh',
       explain:
         'The refresh policy trails one hour behind real time so it never re-materializes the bucket that is ' +
-        'still filling. Real-time aggregation covers that most recent hour for readers.',
+        'still filling. This view explicitly enabled real-time aggregation so readers can also see the raw ' +
+        'tail after the materialization watermark.',
       sql: `SELECT add_continuous_aggregate_policy('fleet_hourly',
   start_offset      => INTERVAL '2 days',
   end_offset        => INTERVAL '1 hour',
@@ -107,8 +117,8 @@ WITH NO DATA;`,
       title: 'Step 5 - the storage lifecycle',
       explain:
         'Two policies define the whole lifecycle: rows stay row-oriented for 7 days while they are hot, ' +
-        'become columnar afterwards, and are dropped entirely at 90 days. The raw table stays a fixed size ' +
-        'forever while the rollup keeps the history that matters.',
+        'become columnar afterwards, and are dropped entirely at 90 days. Raw storage is therefore bounded; ' +
+        'the hourly aggregate continues to grow slowly unless it receives its own retention policy.',
       sql: [
         `CALL remove_columnstore_policy('fleet_telemetry', if_exists => true);`,
         `CALL add_columnstore_policy('fleet_telemetry', after => INTERVAL '7 days', if_not_exists => true);`,
@@ -166,12 +176,23 @@ ORDER BY vehicle_id, time DESC;`,
       explain:
         'The historical panel never touches the raw table. delta() reads distance straight out of the stored ' +
         'counter_agg, which is why the rollup remains useful even after the raw rows are dropped.',
-      sql: `SELECT
-  time_bucket('1 day', bucket)            AS day,
-  round(avg(avg_speed)::numeric, 1)       AS avg_speed,
-  round(max(max_speed)::numeric, 1)       AS peak_speed,
-  round(sum(delta(odo))::numeric, 1)      AS km_travelled
-FROM fleet_hourly
+      sql: `WITH daily_vehicle AS (
+  SELECT
+    time_bucket('1 day', bucket) AS day,
+    vehicle_id,
+    sum(speed_sum) AS speed_sum,
+    sum(speed_samples) AS speed_samples,
+    max(max_speed) AS peak_speed,
+    delta(rollup(odo)) AS km_travelled
+  FROM fleet_hourly
+  GROUP BY day, vehicle_id
+)
+SELECT
+  day,
+  round((sum(speed_sum) / NULLIF(sum(speed_samples), 0))::numeric, 1) AS avg_speed,
+  round(max(peak_speed)::numeric, 1) AS peak_speed,
+  round(sum(km_travelled)::numeric, 1) AS km_travelled
+FROM daily_vehicle
 GROUP BY day
 ORDER BY day DESC
 LIMIT 7;`,
@@ -209,8 +230,8 @@ LIMIT 5;`,
   challenge: {
     prompt:
       'From fleet_hourly, return the vehicle that travelled the most kilometres in the last 7 days: columns vehicle_id and km, one row.',
-    hint: 'delta(odo) gives kilometres per bucket; sum them per vehicle and order descending.',
-    solution: `SELECT vehicle_id, sum(delta(odo)) AS km FROM fleet_hourly WHERE bucket >= now() - INTERVAL '7 days' GROUP BY vehicle_id ORDER BY km DESC LIMIT 1;`,
+    hint: 'Roll up each vehicle counter state across the selected buckets, then apply delta once.',
+    solution: `SELECT vehicle_id, delta(rollup(odo)) AS km FROM fleet_hourly WHERE bucket >= now() - INTERVAL '7 days' GROUP BY vehicle_id ORDER BY km DESC LIMIT 1;`,
   },
   next: 'Core track complete. The advanced track starts here: npm run lesson 09',
 };

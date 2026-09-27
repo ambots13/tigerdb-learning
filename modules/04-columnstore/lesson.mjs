@@ -103,8 +103,8 @@ BEGIN
   END LOOP;
 END $$;`,
       takeaway:
-        'Conversion is per chunk, which is why it never locks the whole table and why recent data can stay ' +
-        'in the rowstore while history is compressed.',
+        'Conversion operates on one target chunk at a time. It still locks and rewrites that chunk, while ' +
+        'other chunks can remain row-oriented and available through the same hypertable.',
     },
     {
       title: 'How much did that save?',

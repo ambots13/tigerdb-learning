@@ -17,7 +17,7 @@ States, uptime, downsampling and OHLC: the hyperfunctions that answer questions 
 
 A chart 800 pixels wide cannot show 500,000 points. Naive approaches - every Nth row, or an average per bucket - flatten exactly the spikes you are looking for.
 
-lttb (Largest Triangle Three Buckets) picks the points that preserve the visual shape, keeping peaks and troughs that averaging would erase.
+lttb (Largest Triangle Three Buckets) selects source points to approximate the visual shape. Its resolution is a target, not a guarantee of an exact output count or preservation of every extreme.
 
 ```sql
 SELECT count(*) AS points_returned
@@ -47,7 +47,7 @@ ORDER BY time
 LIMIT 8;
 ```
 
-> **Note** Compare the min and max of the downsampled series with the raw min and max - a good downsampler preserves the extremes.
+> **Note** Compare sampled and raw extrema as an empirical quality check. LTTB does not guarantee that the global minimum and maximum are selected.
 
 ## 3. Did downsampling preserve the extremes?
 
@@ -69,7 +69,7 @@ SELECT
     WHERE sensor_id = 1 AND time >= now() - INTERVAL '2 days') AS raw_max;
 ```
 
-> **Takeaway** The sampled extremes sit at or very near the raw extremes, on 5% of the points. That is the difference between lttb and a naive average.
+> **Takeaway** Interpret the measured difference rather than assuming an invariant. LTTB optimizes visual similarity and can omit a global extreme.
 
 ## 4. state_agg: how long was it in each state?
 
@@ -192,9 +192,9 @@ LIMIT 6;
 
 > **Takeaway** Summing temperature x interval by hand gets the edges wrong. This does not.
 
-## 10. These all combine across buckets
+## 10. Which states combine across buckets
 
-Like the aggregates in module 06, these are storable values. Materialise state_agg or candlestick_agg per hour in a continuous aggregate, then roll hours into days later with the matching rollup function - without revisiting raw rows.
+state_agg, heartbeat_agg, candlestick, and time_weight are documented two-step aggregates whose states can be combined with matching rollup functions. LTTB is a downsampling aggregate returning a timevector and should not be presented as the same rollup pattern.
 
 ```sql
 SELECT
@@ -210,7 +210,7 @@ ORDER BY bucket;
 
 ## Challenge
 
-Using lttb, downsample sensor 2 temperature over the last 24 hours to exactly 25 points, and return the number of points in a column named points.
+Using lttb, target approximately 25 points for sensor 2 temperature over the last 24 hours, and return the number of points in a column named points.
 
 _Hint: Wrap the lttb call in unnest(...) and count the rows._
 

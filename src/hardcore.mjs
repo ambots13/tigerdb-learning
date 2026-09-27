@@ -1,3 +1,6 @@
+import { advancedDeepDives } from './hardcore-curriculum-advanced.mjs';
+import { coreDeepDives } from './hardcore-curriculum-core.mjs';
+
 const checkpoint = (question, options, answer, explanation) => ({
   question,
   options,
@@ -541,6 +544,17 @@ export const hardcoreByLesson = {
     ],
   },
 };
+
+for (const [lessonId, deepDive] of Object.entries({
+  ...coreDeepDives,
+  ...advancedDeepDives,
+})) {
+  if (!hardcoreByLesson[lessonId]) {
+    throw new Error(`Deep curriculum references unknown lesson ${lessonId}`);
+  }
+  hardcoreByLesson[lessonId].duration = `${deepDive.estimatedMinutes / 60} hours`;
+  hardcoreByLesson[lessonId].deepDive = deepDive;
+}
 
 export function getHardcoreLesson(lessonId) {
   return hardcoreByLesson[lessonId] ?? null;

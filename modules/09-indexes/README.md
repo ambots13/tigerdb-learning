@@ -66,11 +66,11 @@ WHERE temperature::int = 20
   AND time >= now() - INTERVAL '1 day';
 ```
 
-> **Note** The expression in the query must match the indexed expression exactly - temperature::int and round(temperature) are different indexes as far as the planner is concerned.
+> **Note** The query must contain an expression the planner can match to the indexed expression. PostgreSQL normalizes some equivalent forms, but temperature::int and round(temperature) are different.
 
 ## 4. Covering index: answer from the index alone
 
-INCLUDE adds payload columns to a B-tree without making them part of the key. If every column a query needs is present, PostgreSQL can use an Index Only Scan and never touch the table.
+INCLUDE adds payload columns to a B-tree without making them part of the key. If every column a query needs is present, PostgreSQL can use an Index Only Scan. It may still visit heap pages whose visibility-map bits are not set, so inspect Heap Fetches rather than assuming zero.
 
 Look for "Index Only Scan" and "Heap Fetches" in the plan.
 
@@ -132,7 +132,7 @@ EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY OFF)
 SELECT count(*) FROM events_json WHERE payload @> '{"tag": "t3"}';
 ```
 
-> **Note** Use jsonb_path_ops - CREATE INDEX ... USING gin (payload jsonb_path_ops) - for a smaller, faster index when you only ever use the @> operator.
+> **Note** Use jsonb_path_ops - CREATE INDEX ... USING gin (payload jsonb_path_ops) - for a smaller, faster index for @>, @?, and @@. It does not support the key-existence operators ?, ?|, and ?&.
 
 ## 7. Hash: equality and nothing else
 
@@ -149,7 +149,7 @@ CREATE INDEX IF NOT EXISTS events_json_hash_idx
 
 Columnar chunks work differently. Rows live inside compressed batches, so a row-oriented index would be useless. Instead TimescaleDB keeps small per-batch summaries called sparse indexes and uses them to discard entire batches before decompressing anything.
 
-Two kinds exist: minmax records the range of a column per batch, and bloom stores a bloom filter for equality lookups on high-cardinality columns. You declare them as a table option rather than with CREATE INDEX.
+Configurable minmax records a range per batch, while bloom stores a probabilistic filter for equality lookups. TimescaleDB 2.28+ also creates automatic firstlast metadata for orderby columns. You configure bloom and minmax as table options rather than with CREATE INDEX.
 
 ```sql
 DROP TABLE IF EXISTS spans CASCADE;
@@ -194,7 +194,7 @@ Now find a single trace among hundreds of thousands of rows. In the plan, the fi
 
 _This step runs a timed comparison in the CLI; see the runner output._
 
-> **Takeaway** Sparse indexes are maintained for you and cost almost nothing to store. They are the columnstore answer to "I need to find one specific value".
+> **Takeaway** Sparse indexes trade metadata and build work for batch pruning; bloom filters can produce false positives. Verify their value with EXPLAIN batch-filter counters instead of assuming.
 
 ## 10. Choosing an index
 
@@ -221,7 +221,7 @@ GROUP BY 1
 ORDER BY sum(idx_scan) DESC;
 ```
 
-> **Takeaway** An index with zero scans after a representative workload is pure cost: it slows every write and occupies space on every chunk.
+> **Takeaway** Zero scans after a representative observation window is a reason to investigate, not automatic permission to drop: statistics reset, replicas and rare jobs may use it, and unique indexes enforce constraints.
 
 ## 11. Clean up
 

@@ -33,7 +33,7 @@ CREATE TABLE conditions (
 );
 ```
 
-> **Takeaway** chunk_interval is the width of one chunk. Aim for a size where roughly the most recent chunk or two fit in memory; 1 day to 7 days is a common starting point.
+> **Takeaway** chunk_interval is the width of one chunk. A documented starting criterion is to keep indexes for all chunks currently receiving writes within roughly 25% of available memory, then measure the workload.
 
 ## 2. Insert rows and let chunks appear
 
@@ -99,7 +99,7 @@ LIMIT 5;
 
 ## 6. Chunk exclusion: the payoff
 
-This is the reason time partitioning matters. The query below asks for two hours of data out of a month. Count the scan nodes in the plan: exactly one chunk is opened. Every other chunk was ruled out before a single row was read, because the planner knows each chunk's time range.
+This is the reason time partitioning matters. The query below asks for two hours of data out of a month. Count the scan nodes in your plan: only chunks whose ranges overlap the predicate should be opened. The exact count depends on whether the two-hour window crosses a chunk boundary.
 
 ```sql
 EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY OFF)

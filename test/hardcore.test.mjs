@@ -16,6 +16,33 @@ test('every lesson has a complete Hardcore Mode supplement', async () => {
     assert.ok(hardcore.pitfalls.length >= 2);
     assert.equal(hardcore.checkpoints.length, 3);
     assert.equal(hardcore.drills.length, 2);
+    assert.ok(hardcore.deepDive, `missing deep curriculum for lesson ${lesson.id}`);
+    assert.ok(hardcore.deepDive.estimatedMinutes >= 120);
+    assert.ok(hardcore.deepDive.estimatedMinutes <= 240);
+    assert.equal(
+      hardcore.deepDive.phases.reduce((total, phase) => total + phase.minutes, 0),
+      hardcore.deepDive.estimatedMinutes,
+    );
+    assert.ok(hardcore.deepDive.phases.length >= 8);
+    assert.ok(hardcore.deepDive.outcomes.length >= 4);
+    assert.ok(hardcore.deepDive.sources.length >= 3);
+
+    const sourceIds = new Set(hardcore.deepDive.sources.map((source) => source.id));
+    const activities = hardcore.deepDive.phases.flatMap((phase) => phase.activities);
+    assert.ok(activities.length >= 10);
+    assert.equal(new Set(activities.map((activity) => activity.id)).size, activities.length);
+    assert.ok(activities.some((activity) => activity.type === 'failure-lab'));
+    assert.ok(activities.some((activity) => activity.type === 'scenario'));
+    assert.ok(activities.some((activity) => activity.type === 'assessment'));
+
+    for (const activity of activities) {
+      assert.ok(['documented', 'measured', 'recommendation'].includes(activity.claim));
+      assert.ok(activity.instructions.length >= 2);
+      assert.ok(activity.evidence.length >= 1);
+      for (const sourceId of activity.sourceIds ?? []) {
+        assert.ok(sourceIds.has(sourceId), `${lesson.id} references unknown source ${sourceId}`);
+      }
+    }
 
     for (const checkpoint of hardcore.checkpoints) {
       assert.equal(checkpoint.options.length, 3);

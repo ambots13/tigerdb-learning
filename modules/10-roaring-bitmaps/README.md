@@ -25,7 +25,7 @@ SELECT 'a bitmap is a set of integers you can union, intersect and count' AS ide
 
 ## 2. Enable the extension
 
-Roaring bitmaps come from the roaringbitmap extension, which ships with this image. It adds a roaringbitmap column type plus functions to build, combine and measure bitmaps.
+Roaring bitmaps come from the third-party pg_roaringbitmap PostgreSQL extension, not TimescaleDB Toolkit. The pinned lab image currently includes it, but every deployment must check availability.
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS roaringbitmap;
@@ -117,7 +117,7 @@ Union the hourly bitmaps and count the result. The answer is exact - identical t
 
 _This step runs a timed comparison in the CLI; see the runner output._
 
-> **Takeaway** This is the payoff: exact distinct counts that roll up. Keep the rollup and you can drop the raw rows on a retention policy without losing the ability to answer.
+> **Takeaway** This is the payoff: exact distinct counts that roll up. Keep the rollup and you can drop the raw rows only after ensuring no future aggregate refresh window overlaps the retained bitmap history.
 
 ## 8. Unique users per day, from the hourly sets
 
@@ -167,21 +167,19 @@ ORDER BY day;
 
 > **Note** The numbers are identical every day because the sample data alternates between two overlapping user pools by design - 3000 shared, 1000 unique to each. Real data is messier; the arithmetic is the same.
 
-## 10. Where TimescaleDB itself is heading
+## 10. Do not confuse application bitmaps with sparse indexes
 
-Roaring bitmaps also appear inside the engine. The columnstore keeps per-batch sparse indexes (module 09) so it can skip compressed batches, and bitmap-style encodings are a natural fit for that job.
-
-The query below lists the sparse index types this build accepts. If a roaring option lands in a later release it will show up as an accepted type here - today, on this version, the answer is bloom and minmax.
+The roaringbitmap values in this module are application-level exact sets. Hypercore sparse indexes are a different feature: configurable bloom and minmax metadata plus automatic firstlast metadata on orderby columns. They are used for batch pruning and are not roaring sets you can query.
 
 ```sql
 SELECT
   extversion AS timescaledb_version,
-  'bloom, minmax' AS accepted_sparse_index_types,
+  'bloom, minmax, automatic firstlast' AS sparse_index_metadata,
   current_setting('timescaledb.auto_sparse_indexes') AS auto_sparse_indexes
 FROM pg_extension WHERE extname = 'timescaledb';
 ```
 
-> **Note** To test for a native roaring sparse index on a newer build, try: ALTER TABLE t SET (timescaledb.sparse_index = 'roaring(col)'). On this version it fails with 'unrecognized sparse index type'. Until then, the roaringbitmap extension used in this module is the supported way to work with bitmaps in your own tables.
+> **Note** Do not probe undocumented sparse-index names with ALTER TABLE. Check the versioned Hypercore indexing reference for supported metadata types.
 
 ## 11. Clean up
 

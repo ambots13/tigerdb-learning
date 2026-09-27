@@ -101,7 +101,7 @@ WHERE user_view_name = 'backfill_hourly';
 
 ## 6. Fix it with a targeted refresh
 
-Refresh only the window the late data landed in. This is cheap and precise; refreshing everything would re-materialize five days to correct one hour.
+Refresh only the window the late data landed in. This is cheap and precise; refreshing everything asks the invalidation-driven refresh machinery to inspect a much broader range, even though it may only recompute invalidated buckets. Only complete buckets contained by the window are eligible.
 
 ```sql
 CALL refresh_continuous_aggregate('backfill_hourly', now() - INTERVAL '4 days', now() - INTERVAL '2 days');
@@ -115,9 +115,9 @@ SELECT
 
 ## 7. Make the policy cover your late-arrival window
 
-start_offset is how far back each scheduled refresh reaches. It must be at least as long as your worst realistic late arrival, or the policy will keep skipping past the damage.
+start_offset is how far back each scheduled refresh reaches. It must be at least as long as your target late-arrival horizon unless another policy or manual refresh covers older data.
 
-The cost is real: a wider window re-materializes more buckets on every run, so pick it from measured behaviour rather than optimism.
+A wider window inspects a broader range and can process more invalidations, so pick it from measured behaviour rather than optimism.
 
 ```sql
 SELECT add_continuous_aggregate_policy('backfill_hourly',
@@ -128,7 +128,7 @@ SELECT add_continuous_aggregate_policy('backfill_hourly',
 ) AS job_id;
 ```
 
-> **Takeaway** Rule of thumb: start_offset larger than your late-arrival window, and end_offset at least one bucket so you never materialize a bucket that is still filling.
+> **Takeaway** Choose start_offset from measured lateness. Choose end_offset so it falls inside the current bucket when you want that still-filling bucket excluded; it need not universally equal a full bucket.
 
 ## 8. Measure lateness instead of guessing it
 

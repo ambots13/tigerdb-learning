@@ -46,6 +46,9 @@ function lessonProgress(lesson) {
   if (!Array.isArray(progress.steps)) progress.steps = [];
   if (!Array.isArray(progress.checkpoints)) progress.checkpoints = [];
   if (!Array.isArray(progress.drills)) progress.drills = [];
+  if (!progress.deep || typeof progress.deep !== 'object' || Array.isArray(progress.deep)) {
+    progress.deep = {};
+  }
   return progress;
 }
 
@@ -248,11 +251,18 @@ function updateHardcoreProgress(lesson) {
   }
 
   const progress = lessonProgress(lesson);
-  const total = lesson.steps.length + lesson.hardcore.checkpoints.length + lesson.hardcore.drills.length;
+  const deepActivities =
+    lesson.hardcore.deepDive?.phases.flatMap((phase) => phase.activities) ?? [];
+  const total =
+    lesson.steps.length +
+    lesson.hardcore.checkpoints.length +
+    lesson.hardcore.drills.length +
+    deepActivities.length;
   const completed =
     progress.steps.filter(Boolean).length +
     progress.checkpoints.filter(Boolean).length +
-    progress.drills.filter(Boolean).length;
+    progress.drills.filter(Boolean).length +
+    deepActivities.filter((activity) => progress.deep[activity.id]).length;
   const percent = total ? Math.round((completed / total) * 100) : 0;
 
   hardcoreProgressEl.innerHTML = '';
@@ -279,6 +289,28 @@ function appendMasteryCheck(container, lesson, group, index, label) {
     updateHardcoreProgress(lesson);
   });
   row.append(checkbox, document.createTextNode(label));
+  container.append(row);
+}
+
+function appendDeepMasteryCheck(container, lesson, activity) {
+  const progress = lessonProgress(lesson);
+  const row = el('label', 'mastery-check deep-mastery-check');
+  const checkbox = el('input');
+  checkbox.type = 'checkbox';
+  checkbox.checked = Boolean(progress.deep[activity.id]);
+  checkbox.addEventListener('change', () => {
+    progress.deep[activity.id] = checkbox.checked;
+    saveHardcoreProgress();
+    updateHardcoreProgress(lesson);
+  });
+  row.append(
+    checkbox,
+    document.createTextNode(
+      activity.type === 'assessment'
+        ? 'I completed this closed-book and verified every required outcome'
+        : 'I completed this activity and recorded the required evidence',
+    ),
+  );
   container.append(row);
 }
 
@@ -379,6 +411,139 @@ function renderHardcoreIntro(container, lesson) {
   container.append(intro);
 }
 
+function appendSqlAction(container, sql, label, shouldRun = false) {
+  const button = el('button', shouldRun ? null : 'ghost', label);
+  button.type = 'button';
+  button.addEventListener('click', () => {
+    editor.value = sql;
+    editor.focus();
+    if (shouldRun) runSql(sql);
+  });
+  container.append(button);
+}
+
+function renderDeepActivity(lesson, activity, sourceIndex) {
+  const card = el('article', `deep-activity activity-${activity.type}`);
+  const heading = el('div', 'deep-activity-heading');
+  heading.append(el('span', 'activity-type', activity.type.replaceAll('-', ' ')));
+  heading.append(el('span', `claim-kind claim-${activity.claim}`, activity.claim));
+  card.append(heading);
+  card.append(el('h4', null, activity.title));
+  card.append(el('p', 'activity-purpose', activity.purpose));
+
+  const instructions = el('ol', 'activity-instructions');
+  for (const instruction of activity.instructions) {
+    instructions.append(el('li', null, instruction));
+  }
+  card.append(instructions);
+
+  if (activity.sql) {
+    card.append(window.SqlGuide.render(activity.sql, activity.title, activity.purpose));
+    appendSqlAction(card, activity.sql, 'Load lab SQL');
+  }
+  if (activity.starterSql) {
+    appendSqlAction(card, activity.starterSql, 'Load starter SQL');
+  }
+  if (activity.hint) appendDisclosure(card, 'Progressive hint', activity.hint, 'drill-help');
+  if (activity.solution) {
+    const solution = el('details', 'drill-help solution');
+    solution.append(el('summary', null, 'Reveal reference approach'));
+    solution.append(
+      window.SqlGuide.render(activity.solution, `${activity.title} reference`, activity.purpose),
+    );
+    appendSqlAction(solution, activity.solution, 'Run reference', true);
+    card.append(solution);
+  }
+
+  const evidence = el('div', 'evidence-box');
+  evidence.append(el('strong', null, 'Evidence to record'));
+  appendList(evidence, 'evidence-list', activity.evidence);
+  card.append(evidence);
+
+  if (activity.sourceIds?.length) {
+    const sources = el('p', 'activity-sources');
+    sources.append(document.createTextNode('Verify: '));
+    activity.sourceIds.forEach((sourceId, index) => {
+      const source = sourceIndex.get(sourceId);
+      if (!source) return;
+      const link = el('a', null, source.title);
+      link.href = source.url;
+      link.target = '_blank';
+      link.rel = 'noreferrer';
+      sources.append(link);
+      if (index < activity.sourceIds.length - 1) {
+        sources.append(document.createTextNode(' · '));
+      }
+    });
+    card.append(sources);
+  }
+
+  appendDeepMasteryCheck(card, lesson, activity);
+  return card;
+}
+
+function renderDeepCurriculum(container, lesson) {
+  const deepDive = lesson.hardcore.deepDive;
+  if (!deepDive) return;
+
+  const sourceIndex = new Map(deepDive.sources.map((source) => [source.id, source]));
+  const overview = el('section', 'deep-overview');
+  overview.append(el('div', 'eyebrow', '2–4 hour engineering intensive'));
+  overview.append(el('h3', null, deepDive.title));
+  overview.append(el('p', null, deepDive.summary));
+  overview.append(el('h4', null, 'Mastery outcomes'));
+  appendList(overview, 'hardcore-list', deepDive.outcomes);
+  const time = deepDive.phases.reduce((total, phase) => total + phase.minutes, 0);
+  overview.append(
+    el(
+      'p',
+      'time-budget',
+      `${deepDive.phases.length} phases · ${deepDive.phases.flatMap((phase) => phase.activities).length} activities · ${time} minutes`,
+    ),
+  );
+  container.append(overview);
+
+  deepDive.phases.forEach((phase, phaseIndex) => {
+    const section = el('details', 'deep-phase');
+    section.open = phaseIndex === 0;
+    const summary = el('summary');
+    const summaryText = el('span');
+    summaryText.append(el('b', null, `${phaseIndex + 1}. ${phase.title}`));
+    summaryText.append(el('small', null, phase.overview));
+    summary.append(summaryText, el('span', 'phase-time', `${phase.minutes} min`));
+    section.append(summary);
+    const body = el('div', 'deep-phase-body');
+    for (const activity of phase.activities) {
+      body.append(renderDeepActivity(lesson, activity, sourceIndex));
+    }
+    section.append(body);
+    container.append(section);
+  });
+
+  const sources = el('section', 'source-panel');
+  sources.append(el('h3', null, 'Verified source map'));
+  sources.append(
+    el(
+      'p',
+      'section-intro',
+      'Documented facts link to primary references. Measured claims must be reproduced in this lab; recommendations must be defended against workload constraints.',
+    ),
+  );
+  const list = el('ol', 'source-list');
+  for (const source of deepDive.sources) {
+    const item = el('li');
+    const link = el('a', null, source.title);
+    link.href = source.url;
+    link.target = '_blank';
+    link.rel = 'noreferrer';
+    item.append(link);
+    item.append(document.createTextNode(` — ${source.note}`));
+    list.append(item);
+  }
+  sources.append(list);
+  container.append(sources);
+}
+
 function renderLesson(lesson) {
   const container = $('#lesson');
   container.innerHTML = '';
@@ -393,6 +558,7 @@ function renderLesson(lesson) {
 
   const hardcoreEnabled = learningMode === 'hardcore' && lesson.hardcore;
   if (hardcoreEnabled) renderHardcoreIntro(container, lesson);
+  if (hardcoreEnabled) renderDeepCurriculum(container, lesson);
 
   lesson.steps.forEach((step, index) => {
     const wrapper = el('div', 'step');

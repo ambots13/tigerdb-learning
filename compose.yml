@@ -2,7 +2,7 @@
 # which needs nothing but Docker itself.
 services:
   tigerdb:
-    image: timescale/timescaledb-ha:pg17
+    image: timescale/timescaledb-ha:pg17.11-ts2.29.2
     container_name: tigerdb-lab
     environment:
       POSTGRES_PASSWORD: tigerlab

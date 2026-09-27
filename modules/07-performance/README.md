@@ -15,7 +15,7 @@ Index for your real access pattern, size chunks sensibly, and read plans with co
 
 ## 1. What indexes exist by default?
 
-Creating a hypertable gives you one index automatically: the partitioning column, descending. That covers "recent data first" queries perfectly and nothing else.
+A standard one-dimensional hypertable normally receives a descending index on its partitioning column unless default index creation is disabled. Inspect the actual catalog instead of assuming.
 
 ```sql
 SELECT indexname, indexdef
@@ -56,7 +56,7 @@ It applies to SELECT DISTINCT and to "latest row per device" style queries.
 
 _This step runs a timed comparison in the CLI; see the runner output._
 
-> **Takeaway** SkipScan is automatic when a suitable index exists. If you do not see it in a plan, the usual cause is a missing index on the DISTINCT column.
+> **Takeaway** SkipScan is cost-based. A suitable index is necessary, but statistics, distinct cardinality, NULLs, filters, ordering, and competing plans all affect whether the planner selects it.
 
 ## 6. Constraints and schema changes
 
@@ -83,7 +83,7 @@ ALTER TABLE readings DROP COLUMN firmware;
 
 ## 7. Chunk interval: the one sizing decision
 
-The rule of thumb is that the chunks being actively written should fit comfortably in memory - roughly 25% of RAM for the most recent chunk across all hypertables. Too wide and inserts thrash the cache; too narrow and you drown in thousands of tiny chunks and planning overhead.
+A documented starting criterion is that indexes for all chunks currently receiving writes fit in roughly 25% of available memory. Estimate index growth, then measure: overly wide chunks pressure the cache, while overly narrow chunks increase metadata and planning overhead.
 
 ```sql
 SELECT
@@ -112,14 +112,17 @@ SELECT set_chunk_time_interval('readings', INTERVAL '1 day');
 
 ## 9. Chunk skipping on a non-time column
 
-Chunk exclusion normally works on time. Enabling chunk skipping makes TimescaleDB track the min and max of another column per chunk, so a filter on that column can rule out whole chunks too. It is most effective when the column is loosely correlated with time, such as an ever-increasing id.
+In TimescaleDB 2.29, chunk skipping is a tech-preview feature for supported integer-like and timestamp-like columns on columnstore chunks. It is useful when a non-partition column is strongly correlated with time. The seed has no suitable supported column: sensor_id repeats in every chunk, so tracking its range would not exclude useful history.
 
 ```sql
-SET timescaledb.enable_chunk_skipping = on;
-SELECT enable_chunk_skipping('readings', 'sensor_id', if_not_exists => true);
+SELECT
+  round(corr(sensor_id::double precision, extract(epoch FROM time))::numeric, 4)
+    AS sensor_time_correlation,
+  count(DISTINCT sensor_id) AS sensors
+FROM readings;
 ```
 
-> **Note** The setting is a GUC. Set it in postgresql.conf (and restart) so background workers and other sessions see it too - a session-level SET only affects your own connection.
+> **Note** Enable tracking before converting chunks: statistics are recorded during conversion, and already converted chunks need reconversion to acquire them. Do not force the feature onto an unsuitable column.
 
 ## 10. Counting rows without counting rows
 

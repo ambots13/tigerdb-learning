@@ -18,9 +18,9 @@ The two modelling choices that decide your compression ratio and query speed: ta
 Inside a columnar chunk, rows are grouped into batches by the segmentby column. Two consequences follow from that single fact:
 
 - Queries filtering on the segmentby column can skip whole batches.
-- Values within a batch are similar, which is what makes the encoding compact.
+- Rows in a batch share the segment key; orderby controls locality for other values.
 
-Pick a column with few distinct values that you filter by often. We will now do the opposite on purpose to see what happens.
+Pick a repeated column that matches important equality filters, then measure. We will now do the opposite on purpose to see what happens.
 
 ```sql
 SELECT 'about to build the same data twice, segmented two different ways' AS plan;
@@ -64,7 +64,7 @@ FROM seg_good;
 
 ## 3. Segment one well and one badly
 
-seg_good groups by device_id: 20 batches per chunk, each holding many similar rows. seg_bad groups by req_id, which is unique per row - so every batch holds exactly one row and the columnar format has nothing to compress.
+seg_good creates 20 segment groups per chunk, and each group can span multiple physical batches of roughly up to 1,000 rows. seg_bad groups by unique req_id, forcing one-row groups and heavy metadata overhead; the resulting ratio must still be measured.
 
 ```sql
 ALTER TABLE seg_good SET (
@@ -112,7 +112,7 @@ FROM hypertable_columnstore_stats('seg_bad');
 
 ## 6. How to pick segmentby before you commit
 
-Count distinct values against total rows. You want a column where each distinct value covers many rows per chunk - hundreds or thousands, not one. If a column has nearly as many values as rows, it is a filter column, not a segmentby column: give it a bloom sparse index instead (module 09).
+Count distinct values against rows per chunk as a first diagnostic, then consider filter frequency, skew, ordering, and measured plans. A near-unique equality-filtered column is usually unsuitable for segmentby and may be a bloom sparse-index candidate when its type and workload are supported.
 
 ```sql
 SELECT
@@ -128,7 +128,7 @@ SELECT
 FROM seg_good;
 ```
 
-> **Takeaway** rows_per_value is the number to look at. High is good. A value of 1 means every batch holds a single row.
+> **Takeaway** rows_per_value is one useful signal, not a universal threshold. A value of 1 exposes the pathological case; realistic choices still require compression and query measurements.
 
 ## 7. Narrow or wide?
 
@@ -147,13 +147,13 @@ UNION ALL
 SELECT 'wide', '(time, device, temp, humidity, ...)', 'compact; simple queries; schema change per metric';
 ```
 
-> **Takeaway** The readings table in this lab is wide, which is why every query so far has been a plain SELECT with no pivot. For a fixed, known set of metrics, wide is usually the better default.
+> **Takeaway** The readings table in this lab is wide, which is why every query so far has been a plain SELECT with no pivot. Wide and narrow shapes have workload-dependent tradeoffs; neither is a universal default.
 
 ## 8. Where metadata belongs
 
-Do not denormalize slow-changing attributes into every row. Site names, models and owners belong in a small regular table joined at query time - which is exactly how sensors relates to readings here.
+Slow-changing attributes often belong in a small regular table joined at query time, as sensors relates to readings here. Selective denormalization can still avoid important joins or preserve historical dimension values, so decide from query and history requirements.
 
-The exception is a column you filter on constantly and want as segmentby, where storing the id in the hypertable is the point.
+A key you filter on constantly and use as segmentby naturally belongs in the hypertable.
 
 ```sql
 SELECT
@@ -163,7 +163,7 @@ SELECT
   (SELECT count(*) FROM readings)                    AS reading_rows;
 ```
 
-> **Note** Twelve metadata rows serve half a million fact rows. Copying site names into every reading would add nothing but bytes.
+> **Note** Twelve metadata rows serve half a million fact rows here. Measure before denormalizing, and document whether repeated values or historical dimension snapshots justify the storage.
 
 ## 9. Clean up
 
