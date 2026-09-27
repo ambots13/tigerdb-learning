@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { query, withClient, assertConnection, config } from '../db.mjs';
 import { loadAllLessons } from '../lessons.mjs';
+import { getHardcoreLesson } from '../hardcore.mjs';
 import { c } from '../render.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -50,6 +51,7 @@ app.get('/api/lessons', async (_req, res) => {
       challenge: lesson.challenge
         ? { prompt: lesson.challenge.prompt, hint: lesson.challenge.hint ?? '' }
         : null,
+      hardcore: getHardcoreLesson(lesson.id),
     })),
   );
 });

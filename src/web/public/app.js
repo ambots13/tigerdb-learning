@@ -13,10 +13,57 @@ const sqlInsightWhat = $('#sql-insight-what');
 const sqlInsightWhy = $('#sql-insight-why');
 const sqlInsightRelated = $('#sql-insight-related');
 const sqlInsightRelatedList = $('#sql-insight-related-list');
+const learningModeSelect = $('#learning-mode');
+const hardcoreProgressEl = $('#hardcore-progress');
 let lessons = [];
 let aiAvailable = false;
 let activeTutor = null;
 let chatMessages = [];
+let learningMode = loadLearningMode();
+let hardcoreProgress = loadHardcoreProgress();
+
+function loadLearningMode() {
+  try {
+    return localStorage.getItem('tigerdb-learning-mode') === 'hardcore' ? 'hardcore' : 'standard';
+  } catch {
+    return 'standard';
+  }
+}
+
+function loadHardcoreProgress() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('tigerdb-hardcore-progress-v1'));
+    return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+  } catch {
+    return {};
+  }
+}
+
+function lessonProgress(lesson) {
+  const saved = hardcoreProgress[lesson.id];
+  if (!saved || typeof saved !== 'object') hardcoreProgress[lesson.id] = {};
+  const progress = hardcoreProgress[lesson.id];
+  if (!Array.isArray(progress.steps)) progress.steps = [];
+  if (!Array.isArray(progress.checkpoints)) progress.checkpoints = [];
+  if (!Array.isArray(progress.drills)) progress.drills = [];
+  return progress;
+}
+
+function saveHardcoreProgress() {
+  try {
+    localStorage.setItem('tigerdb-hardcore-progress-v1', JSON.stringify(hardcoreProgress));
+  } catch (error) {
+    console.warn('Hardcore progress could not be saved.', error);
+  }
+}
+
+function saveLearningMode() {
+  try {
+    localStorage.setItem('tigerdb-learning-mode', learningMode);
+  } catch (error) {
+    console.warn('Learning mode preference could not be saved.', error);
+  }
+}
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -181,6 +228,157 @@ async function sendTutorMessage(event) {
   }
 }
 
+function appendList(container, className, items) {
+  const list = el('ul', className);
+  for (const item of items) list.append(el('li', null, item));
+  container.append(list);
+}
+
+function appendDisclosure(container, label, content, className = '') {
+  const details = el('details', className);
+  details.append(el('summary', null, label));
+  details.append(el('p', null, content));
+  container.append(details);
+}
+
+function updateHardcoreProgress(lesson) {
+  if (learningMode !== 'hardcore' || !lesson.hardcore) {
+    hardcoreProgressEl.hidden = true;
+    return;
+  }
+
+  const progress = lessonProgress(lesson);
+  const total = lesson.steps.length + lesson.hardcore.checkpoints.length + lesson.hardcore.drills.length;
+  const completed =
+    progress.steps.filter(Boolean).length +
+    progress.checkpoints.filter(Boolean).length +
+    progress.drills.filter(Boolean).length;
+  const percent = total ? Math.round((completed / total) * 100) : 0;
+
+  hardcoreProgressEl.innerHTML = '';
+  const label = el('div', 'progress-label');
+  label.append(el('strong', null, `${percent}% mastery`));
+  label.append(el('span', null, `${completed} of ${total} activities`));
+  const bar = el('div', 'progress-track');
+  const fill = el('span');
+  fill.style.width = `${percent}%`;
+  bar.append(fill);
+  hardcoreProgressEl.append(label, bar);
+  hardcoreProgressEl.hidden = false;
+}
+
+function appendMasteryCheck(container, lesson, group, index, label) {
+  const progress = lessonProgress(lesson);
+  const row = el('label', 'mastery-check');
+  const checkbox = el('input');
+  checkbox.type = 'checkbox';
+  checkbox.checked = Boolean(progress[group][index]);
+  checkbox.addEventListener('change', () => {
+    progress[group][index] = checkbox.checked;
+    saveHardcoreProgress();
+    updateHardcoreProgress(lesson);
+  });
+  row.append(checkbox, document.createTextNode(label));
+  container.append(row);
+}
+
+function renderCheckpoint(lesson, checkpoint, index) {
+  const alreadyComplete = Boolean(lessonProgress(lesson).checkpoints[index]);
+  const card = el('article', 'checkpoint-card');
+  card.append(el('div', 'eyebrow', `Retrieval check ${index + 1}`));
+  card.append(el('h4', null, checkpoint.question));
+  const options = el('div', 'checkpoint-options');
+  const feedback = el('p', 'checkpoint-feedback');
+  feedback.hidden = true;
+
+  checkpoint.options.forEach((option, optionIndex) => {
+    const button = el('button', 'answer-option', option);
+    button.type = 'button';
+    button.disabled = alreadyComplete;
+    button.classList.toggle('correct', alreadyComplete && optionIndex === checkpoint.answer);
+    button.addEventListener('click', () => {
+      const correct = optionIndex === checkpoint.answer;
+      for (const candidate of options.querySelectorAll('button')) {
+        candidate.classList.remove('incorrect');
+        if (correct) {
+          candidate.disabled = true;
+          candidate.classList.toggle('correct', Number(candidate.dataset.index) === checkpoint.answer);
+        }
+      }
+      button.classList.toggle('incorrect', !correct);
+      feedback.className = `checkpoint-feedback ${correct ? 'correct' : 'incorrect'}`;
+      feedback.textContent = `${correct ? 'Correct.' : 'Not quite.'} ${checkpoint.explanation}`;
+      feedback.hidden = false;
+      if (correct) {
+        lessonProgress(lesson).checkpoints[index] = true;
+        saveHardcoreProgress();
+        updateHardcoreProgress(lesson);
+      }
+    });
+    button.dataset.index = optionIndex;
+    options.append(button);
+  });
+  if (alreadyComplete) {
+    feedback.className = 'checkpoint-feedback correct';
+    feedback.textContent = `Mastered. ${checkpoint.explanation}`;
+    feedback.hidden = false;
+  }
+  card.append(options, feedback);
+  return card;
+}
+
+function renderDrill(lesson, drill, index) {
+  const card = el('article', 'drill-card');
+  card.append(el('div', 'eyebrow', `Deliberate practice ${index + 1}`));
+  card.append(el('h4', null, drill.title));
+  card.append(el('p', null, drill.prompt));
+  card.append(el('div', 'success-criteria', `Success looks like: ${drill.success}`));
+
+  const loadButton = el('button', null, 'Load starter SQL');
+  loadButton.type = 'button';
+  loadButton.addEventListener('click', () => {
+    editor.value = drill.starterSql;
+    editor.focus();
+  });
+  card.append(loadButton);
+  appendDisclosure(card, 'Need a hint?', drill.hint, 'drill-help');
+
+  const solution = el('details', 'drill-help solution');
+  solution.append(el('summary', null, 'Compare with a reference solution'));
+  solution.append(window.SqlGuide.render(drill.solution, `${drill.title} solution`, drill.prompt));
+  const runSolution = el('button', 'ghost', 'Run reference solution');
+  runSolution.type = 'button';
+  runSolution.addEventListener('click', () => {
+    editor.value = drill.solution;
+    editor.focus();
+    runSql(drill.solution);
+  });
+  solution.append(runSolution);
+  card.append(solution);
+  appendMasteryCheck(card, lesson, 'drills', index, 'I can complete and explain this without the solution');
+  return card;
+}
+
+function renderHardcoreIntro(container, lesson) {
+  const hardcore = lesson.hardcore;
+  const intro = el('section', 'hardcore-intro');
+  const heading = el('div', 'hardcore-heading');
+  heading.append(el('span', 'hardcore-badge', 'HARDCORE'));
+  heading.append(el('span', 'duration', `${lesson.duration} standard · ${hardcore.duration} hardcore`));
+  intro.append(heading);
+  intro.append(el('h3', null, 'Build a mental model, not muscle memory'));
+  intro.append(el('p', null, hardcore.mentalModel));
+  intro.append(el('h4', null, 'Before you begin'));
+  appendList(intro, 'hardcore-list', hardcore.prerequisites);
+  appendDisclosure(
+    intro,
+    'The hardcore learning loop',
+    'Predict before running. Execute and inspect the real result. Change one variable. Explain the result from memory. Mark mastery only when you can reproduce it without the reference.',
+    'learning-loop',
+  );
+  container.append(intro);
+}
+
 function renderLesson(lesson) {
   const container = $('#lesson');
   container.innerHTML = '';
@@ -193,9 +391,20 @@ function renderLesson(lesson) {
     container.append(list);
   }
 
+  const hardcoreEnabled = learningMode === 'hardcore' && lesson.hardcore;
+  if (hardcoreEnabled) renderHardcoreIntro(container, lesson);
+
   lesson.steps.forEach((step, index) => {
     const wrapper = el('div', 'step');
     wrapper.append(el('h3', null, `${index + 1}. ${step.title}`));
+    if (hardcoreEnabled) {
+      appendDisclosure(
+        wrapper,
+        'Predict before you run',
+        'Without executing the SQL, describe what will change, what shape the result will have, and which database feature does the work.',
+        'prediction',
+      );
+    }
     if (step.explain) wrapper.append(el('p', null, step.explain));
     if (step.sql) {
       wrapper.append(window.SqlGuide.render(step.sql, step.title, step.explain));
@@ -216,12 +425,54 @@ function renderLesson(lesson) {
     wrapper.append(tutorButton);
     if (step.takeaway) wrapper.append(el('div', 'aside-take', `Takeaway: ${step.takeaway}`));
     if (step.note) wrapper.append(el('div', 'aside-note', `Note: ${step.note}`));
+    if (hardcoreEnabled) {
+      appendDisclosure(
+        wrapper,
+        'Make it stick',
+        'Change one safe input such as a time window, grouping column, threshold, or LIMIT. Predict the difference, run it, then explain why the output or plan changed.',
+        'make-it-stick',
+      );
+      appendMasteryCheck(wrapper, lesson, 'steps', index, 'I predicted, experimented, and can explain this step');
+    }
     container.append(wrapper);
   });
 
+  if (hardcoreEnabled) {
+    const checks = el('section', 'hardcore-section');
+    checks.append(el('h3', null, 'Closed-book retrieval'));
+    checks.append(
+      el(
+        'p',
+        'section-intro',
+        'Answer from memory. A missed answer is useful: revisit the relevant step, then try again after a short break.',
+      ),
+    );
+    lesson.hardcore.checkpoints.forEach((checkpoint, index) =>
+      checks.append(renderCheckpoint(lesson, checkpoint, index)),
+    );
+    container.append(checks);
+
+    const drills = el('section', 'hardcore-section');
+    drills.append(el('h3', null, 'Deliberate practice'));
+    drills.append(
+      el(
+        'p',
+        'section-intro',
+        'Start from the incomplete SQL, verify the stated outcome, and only then compare your approach.',
+      ),
+    );
+    lesson.hardcore.drills.forEach((drill, index) => drills.append(renderDrill(lesson, drill, index)));
+    container.append(drills);
+
+    const pitfalls = el('section', 'pitfall-panel');
+    pitfalls.append(el('h3', null, 'Failure modes to recognize'));
+    appendList(pitfalls, 'hardcore-list', lesson.hardcore.pitfalls);
+    container.append(pitfalls);
+  }
+
   if (lesson.challenge) {
     const wrapper = el('div', 'step');
-    wrapper.append(el('h3', null, 'Challenge'));
+    wrapper.append(el('h3', null, hardcoreEnabled ? 'Final transfer challenge' : 'Challenge'));
     wrapper.append(el('p', null, lesson.challenge.prompt));
     if (lesson.challenge.hint) wrapper.append(el('div', 'aside-note', `Hint: ${lesson.challenge.hint}`));
     const tutorButton = el('button', 'ghost', 'Ask AI for a hint');
@@ -231,6 +482,7 @@ function renderLesson(lesson) {
     wrapper.append(tutorButton);
     container.append(wrapper);
   }
+  updateHardcoreProgress(lesson);
   container.scrollTop = 0;
 }
 
@@ -271,6 +523,7 @@ async function init() {
   const aiStatus = await aiResponse.json();
   aiAvailable = aiStatus.available;
   const select = $('#module-select');
+  learningModeSelect.value = learningMode;
   for (const lesson of lessons) {
     const option = el('option', null, `${lesson.id} · ${lesson.title}`);
     option.value = lesson.id;
@@ -278,6 +531,13 @@ async function init() {
   }
   select.addEventListener('change', () => {
     renderLesson(lessons.find((l) => l.id === select.value));
+    tutorEl.hidden = true;
+    activeTutor = null;
+  });
+  learningModeSelect.addEventListener('change', () => {
+    learningMode = learningModeSelect.value;
+    saveLearningMode();
+    renderLesson(lessons.find((lesson) => lesson.id === select.value));
     tutorEl.hidden = true;
     activeTutor = null;
   });

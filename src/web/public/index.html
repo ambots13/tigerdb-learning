@@ -15,9 +15,19 @@
     <main>
       <aside id="sidebar">
         <div class="sidebar-head">
-          <label for="module-select">Module</label>
-          <select id="module-select"></select>
+          <div class="sidebar-control">
+            <label for="module-select">Module</label>
+            <select id="module-select"></select>
+          </div>
+          <div class="sidebar-control mode-control">
+            <label for="learning-mode">Learning mode</label>
+            <select id="learning-mode">
+              <option value="standard">Standard</option>
+              <option value="hardcore">Hardcore</option>
+            </select>
+          </div>
         </div>
+        <div id="hardcore-progress" class="hardcore-progress" hidden></div>
         <p class="sql-guide-hint">Hover or focus highlighted SQL for explanations and useful alternatives.</p>
         <div id="lesson" class="lesson"></div>
       </aside>

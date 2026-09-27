@@ -77,6 +77,12 @@ beyond the scripted steps. Every example and challenge also has an **Ask AI** bu
 chat whose tutor receives the selected lesson's explanation, SQL, objectives, and challenge prompt,
 so questions stay grounded in what you are learning.
 
+Use the **Learning mode** selector to switch to **Hardcore** without changing the standard course.
+Hardcore Mode expands every module with prerequisites, a deeper mental model, predict-before-running
+prompts, controlled experiments, closed-book retrieval checks, two additional SQL drills, common
+failure modes, and a final transfer challenge. Mastery progress is stored locally in your browser.
+Only mark an activity complete when you can reproduce and explain it without the reference solution.
+
 Every lesson SQL snippet is also a guided reading surface. Hover a keyword, function, table, column,
 literal, or operator to see what it does and why it appears in that example. Keyboard users can
 focus the same terms to open the explanations. Important commands, functions, and data types also
