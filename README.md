@@ -77,6 +77,15 @@ beyond the scripted steps. Every example and challenge also has an **Ask AI** bu
 chat whose tutor receives the selected lesson's explanation, SQL, objectives, and challenge prompt,
 so questions stay grounded in what you are learning.
 
+Every lesson SQL snippet is also a guided reading surface. Hover a keyword, function, table, column,
+literal, or operator to see what it does and why it appears in that example. Keyboard users can
+focus the same terms to open the explanations. Important commands, functions, and data types also
+show related SQL alternatives with a short explanation of when each one is useful.
+
+Execution plans are guided too. Run **Explain**, then hover plan nodes, arrows, estimates, actual
+rows and timing, loops, filters, buffers, memory, chunk exclusion, or planning/execution summaries
+to learn how the tree fits together and which signals deserve attention.
+
 ### Free local AI tutor (recommended)
 
 The tutor works with [Ollama](https://ollama.com/), which runs an open-weight model on your

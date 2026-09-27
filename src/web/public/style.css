@@ -69,6 +69,13 @@ aside {
   gap: 10px;
 }
 .sidebar-head label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.sql-guide-hint {
+  margin: 0;
+  padding: 7px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11.5px;
+}
 select {
   flex: 1;
   background: var(--panel-2);
@@ -108,6 +115,55 @@ pre.sql {
   margin: 0 0 8px;
   white-space: pre;
 }
+.sql-token {
+  border-radius: 2px;
+  text-decoration: underline;
+  text-decoration-color: rgba(88, 166, 255, 0.3);
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+  cursor: help;
+}
+.sql-token:hover, .sql-token:focus {
+  color: #fff;
+  background: rgba(88, 166, 255, 0.18);
+  outline: 1px solid rgba(88, 166, 255, 0.55);
+}
+.sql-insight {
+  position: fixed;
+  z-index: 1000;
+  width: min(360px, calc(100vw - 16px));
+  padding: 11px 13px;
+  border: 1px solid var(--accent-2);
+  border-radius: 8px;
+  background: #202936;
+  color: var(--text);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+.sql-insight[hidden] { display: none; }
+.sql-insight strong { color: var(--accent-2); font-size: 13px; }
+.sql-insight p { margin: 5px 0 0; font-size: 12.5px; line-height: 1.45; }
+.sql-insight p:last-child {
+  padding-top: 5px;
+  border-top: 1px solid var(--border);
+  color: #b8c4d1;
+}
+.sql-insight-related {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid var(--border);
+}
+.sql-insight-related[hidden] { display: none; }
+.sql-insight-related h4 {
+  margin: 0 0 5px;
+  color: var(--accent);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.sql-insight-related ul { margin: 0; padding-left: 18px; }
+.sql-insight-related li { margin: 4px 0; font-size: 11.5px; line-height: 1.4; }
+.sql-insight-related code { color: #d2a8ff; font-family: var(--mono); }
 
 pre.plan {
   white-space: pre;
@@ -116,6 +172,40 @@ pre.plan {
   line-height: 1.45;
   color: var(--text);
 }
+.guided-plan { min-width: max-content; }
+.plan-reading-guide {
+  position: sticky;
+  left: 0;
+  width: min(720px, calc(100vw - 380px));
+  min-width: 440px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(88, 166, 255, 0.35);
+  border-radius: 6px;
+  background: rgba(88, 166, 255, 0.08);
+  color: var(--muted);
+  font-size: 12px;
+}
+.plan-reading-guide strong { color: var(--accent-2); }
+.plan-legend { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.plan-legend span {
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+.guided-explain { margin: 0; border: 0; background: transparent; padding: 0; }
+.plan-line { min-height: 1.45em; }
+.plan-token { text-decoration-color: rgba(240, 136, 62, 0.45); }
+.plan-node { color: #d2a8ff; font-weight: 650; }
+.plan-tree { color: var(--accent); font-weight: 700; }
+.plan-estimate { color: #8b949e; }
+.plan-actual { color: #7ee787; }
+.plan-attribute { color: #79c0ff; }
+.plan-relation { color: #ffa657; }
+.plan-buffer { color: #a5d6ff; }
+.plan-warning { color: #ff7b72; }
 
 button {
   background: var(--accent);
@@ -232,4 +322,5 @@ td.null { color: var(--muted); font-style: italic; }
 @media (max-width: 900px) {
   main { grid-template-columns: 1fr; }
   aside { max-height: 40vh; }
+  .plan-reading-guide { width: calc(100vw - 44px); min-width: 300px; }
 }

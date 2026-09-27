@@ -18,6 +18,7 @@
           <label for="module-select">Module</label>
           <select id="module-select"></select>
         </div>
+        <p class="sql-guide-hint">Hover or focus highlighted SQL for explanations and useful alternatives.</p>
         <div id="lesson" class="lesson"></div>
       </aside>
 
@@ -59,6 +60,17 @@ LIMIT 20;</textarea>
       </section>
     </main>
 
+    <div id="sql-insight" class="sql-insight" role="tooltip" hidden>
+      <strong id="sql-insight-title"></strong>
+      <p id="sql-insight-what"></p>
+      <p id="sql-insight-why"></p>
+      <section id="sql-insight-related" class="sql-insight-related" hidden>
+        <h4>Related SQL</h4>
+        <ul id="sql-insight-related-list"></ul>
+      </section>
+    </div>
+
+    <script src="sql-guide.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

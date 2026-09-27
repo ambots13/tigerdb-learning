@@ -7,6 +7,12 @@ const tutorMessagesEl = $('#tutor-messages');
 const tutorInput = $('#tutor-input');
 const tutorForm = $('#tutor-form');
 const sendTutorButton = $('#send-tutor');
+const sqlInsight = $('#sql-insight');
+const sqlInsightTitle = $('#sql-insight-title');
+const sqlInsightWhat = $('#sql-insight-what');
+const sqlInsightWhy = $('#sql-insight-why');
+const sqlInsightRelated = $('#sql-insight-related');
+const sqlInsightRelatedList = $('#sql-insight-related-list');
 let lessons = [];
 let aiAvailable = false;
 let activeTutor = null;
@@ -17,6 +23,43 @@ function el(tag, className, text) {
   if (className) node.className = className;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showSqlInsight(token) {
+  sqlInsightTitle.textContent = token.dataset.insightTitle;
+  sqlInsightWhat.textContent = token.dataset.insightWhat;
+  sqlInsightWhy.textContent = token.dataset.insightWhy;
+  sqlInsightRelatedList.innerHTML = '';
+  const related = token.dataset.insightRelated
+    ? JSON.parse(token.dataset.insightRelated)
+    : [];
+  for (const [name, summary] of related) {
+    const item = el('li');
+    item.append(el('code', null, name));
+    item.append(document.createTextNode(` — ${summary}`));
+    sqlInsightRelatedList.append(item);
+  }
+  sqlInsightRelated.hidden = related.length === 0;
+  sqlInsight.hidden = false;
+
+  const tokenRect = token.getBoundingClientRect();
+  const tooltipRect = sqlInsight.getBoundingClientRect();
+  const gap = 8;
+  const left = Math.min(
+    Math.max(gap, tokenRect.left),
+    window.innerWidth - tooltipRect.width - gap,
+  );
+  const roomBelow = window.innerHeight - tokenRect.bottom;
+  const top =
+    roomBelow >= tooltipRect.height + gap
+      ? tokenRect.bottom + gap
+      : Math.max(gap, tokenRect.top - tooltipRect.height - gap);
+  sqlInsight.style.left = `${left}px`;
+  sqlInsight.style.top = `${top}px`;
+}
+
+function hideSqlInsight() {
+  sqlInsight.hidden = true;
 }
 
 async function runSql(sql) {
@@ -56,9 +99,8 @@ async function runSql(sql) {
 
     // Query plans are text art: a table cell would destroy the indentation.
     if (columns.length === 1 && columns[0] === 'QUERY PLAN') {
-      const pre = el('pre', 'sql plan');
-      pre.textContent = data.rows.map((row) => row['QUERY PLAN']).join('\n');
-      resultEl.append(pre);
+      const plan = data.rows.map((row) => row['QUERY PLAN']).join('\n');
+      resultEl.append(window.SqlGuide.renderPlan(plan));
       return;
     }
 
@@ -156,7 +198,7 @@ function renderLesson(lesson) {
     wrapper.append(el('h3', null, `${index + 1}. ${step.title}`));
     if (step.explain) wrapper.append(el('p', null, step.explain));
     if (step.sql) {
-      wrapper.append(el('pre', 'sql', step.sql));
+      wrapper.append(window.SqlGuide.render(step.sql, step.title, step.explain));
       const button = el('button', 'ghost', 'Load into editor');
       button.addEventListener('click', () => {
         editor.value = step.sql;
@@ -242,6 +284,22 @@ async function init() {
   if (lessons.length) renderLesson(lessons[0]);
 
   $('#run').addEventListener('click', () => runSql(editor.value));
+  for (const surface of [$('#lesson'), resultEl]) {
+    surface.addEventListener('pointerover', (event) => {
+      const token = event.target.closest('.sql-token');
+      if (token) showSqlInsight(token);
+    });
+    surface.addEventListener('pointerout', (event) => {
+      if (event.target.closest('.sql-token')) hideSqlInsight();
+    });
+    surface.addEventListener('focusin', (event) => {
+      const token = event.target.closest('.sql-token');
+      if (token) showSqlInsight(token);
+    });
+    surface.addEventListener('focusout', (event) => {
+      if (event.target.closest('.sql-token')) hideSqlInsight();
+    });
+  }
   tutorForm.addEventListener('submit', sendTutorMessage);
   tutorInput.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
