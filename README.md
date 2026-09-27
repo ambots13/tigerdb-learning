@@ -73,7 +73,28 @@ npm run play    # http://localhost:4000
 Lesson text on the left, a SQL editor and result grid on the right. The **Explain** button wraps your
 query in `EXPLAIN (ANALYZE, BUFFERS)` and renders the plan. Load any lesson step into the
 editor with one click, then change it and see what happens. This is the fastest way to experiment
-beyond the scripted steps.
+beyond the scripted steps. Every example and challenge also has an **Ask AI** button. It opens a
+chat whose tutor receives the selected lesson's explanation, SQL, objectives, and challenge prompt,
+so questions stay grounded in what you are learning.
+
+### Free local AI tutor (recommended)
+
+The tutor works with [Ollama](https://ollama.com/), which runs an open-weight model on your
+computer and sends neither lesson content nor questions to a third party. Install Ollama, then run:
+
+```bash
+ollama pull qwen2.5:3b
+npm run play
+```
+
+The local [`.env`](.env) is preconfigured for that model and endpoint. The first download is
+roughly 2 GB; response speed depends on your hardware. Keep Ollama running while using the tutor.
+
+### Hosted AI tutor
+
+Alternatively, add `OPENAI_API_KEY` to [`.env.example`](.env.example) copied as `.env`, then
+restart `npm run play`. The browser never receives your key. `OPENAI_MODEL` defaults to
+`gpt-4o-mini`; set `OPENAI_BASE_URL` if you use another OpenAI-compatible provider.
 
 If port 4000 is taken, use `PORT=4001 npm run play`.
 

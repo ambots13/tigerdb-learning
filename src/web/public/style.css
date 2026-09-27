@@ -139,7 +139,7 @@ button.ghost {
 button.ghost:hover { border-color: var(--accent-2); }
 
 .workbench { display: flex; flex-direction: column; min-height: 0; }
-.editor-wrap { display: flex; flex-direction: column; flex: 0 0 42%; min-height: 0; }
+.editor-wrap { display: flex; flex-direction: column; flex: 0 0 38%; min-height: 0; }
 .editor-head {
   display: flex;
   align-items: center;
@@ -198,6 +198,36 @@ th, td {
 th { color: var(--accent-2); position: sticky; top: 0; background: var(--panel); }
 tbody tr:hover td { background: var(--panel-2); }
 td.null { color: var(--muted); font-style: italic; }
+
+.tutor {
+  flex: 0 0 32%;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+}
+.tutor[hidden] { display: none; }
+.tutor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.tutor-head strong { color: var(--accent-2); }
+#tutor-context { color: var(--muted); margin-left: 8px; }
+.tutor-messages { flex: 1; overflow-y: auto; padding: 10px 14px; }
+.tutor-message { white-space: pre-wrap; font-size: 13px; margin: 0 0 10px; }
+.tutor-message.user { color: var(--text); }
+.tutor-message.assistant { color: #c9d1d9; }
+.tutor-message b { color: var(--muted); font-size: 12px; }
+.tutor-form { display: flex; gap: 8px; padding: 8px 14px; border-top: 1px solid var(--border); }
+.tutor-form textarea { min-height: 42px; max-height: 90px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+.tutor-form button { align-self: center; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 
 @media (max-width: 900px) {
   main { grid-template-columns: 1fr; }

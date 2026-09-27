@@ -41,6 +41,21 @@ LIMIT 20;</textarea>
         <div id="result" class="result">
           <p class="placeholder">Run a query, or click any <code>Run this</code> button in a lesson step.</p>
         </div>
+        <section id="tutor" class="tutor" hidden aria-live="polite">
+          <div class="tutor-head">
+            <div>
+              <strong>AI tutor</strong>
+              <span id="tutor-context"></span>
+            </div>
+            <button id="close-tutor" class="ghost">Close</button>
+          </div>
+          <div id="tutor-messages" class="tutor-messages"></div>
+          <form id="tutor-form" class="tutor-form">
+            <label class="sr-only" for="tutor-input">Ask about this lesson item</label>
+            <textarea id="tutor-input" rows="2" placeholder="Ask why this works, what to try next, or for a hint... (Enter to send; Shift+Enter for a new line)" required></textarea>
+            <button id="send-tutor" type="submit">Ask</button>
+          </form>
+        </section>
       </section>
     </main>
 

@@ -1,7 +1,16 @@
 const $ = (selector) => document.querySelector(selector);
 const editor = $('#sql');
 const resultEl = $('#result');
+const tutorEl = $('#tutor');
+const tutorContextEl = $('#tutor-context');
+const tutorMessagesEl = $('#tutor-messages');
+const tutorInput = $('#tutor-input');
+const tutorForm = $('#tutor-form');
+const sendTutorButton = $('#send-tutor');
 let lessons = [];
+let aiAvailable = false;
+let activeTutor = null;
+let chatMessages = [];
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -78,6 +87,58 @@ async function runSql(sql) {
   }
 }
 
+function addTutorMessage(role, content) {
+  const message = el('p', `tutor-message ${role}`);
+  message.append(el('b', null, `${role === 'user' ? 'You' : 'Tutor'}: `));
+  message.append(document.createTextNode(content));
+  tutorMessagesEl.append(message);
+  tutorMessagesEl.scrollTop = tutorMessagesEl.scrollHeight;
+}
+
+function openTutor(lesson, context) {
+  if (!aiAvailable) {
+    window.alert('AI tutoring is not configured. Add OPENAI_API_KEY to .env, then restart the playground.');
+    return;
+  }
+  activeTutor = { lessonId: lesson.id, ...context };
+  chatMessages = [];
+  tutorMessagesEl.innerHTML = '';
+  tutorContextEl.textContent = context.label;
+  addTutorMessage('assistant', `Ask me anything about ${context.label.toLowerCase()}.`);
+  tutorEl.hidden = false;
+  tutorInput.focus();
+}
+
+async function sendTutorMessage(event) {
+  event.preventDefault();
+  if (!activeTutor) return;
+  const content = tutorInput.value.trim();
+  if (!content) return;
+
+  chatMessages.push({ role: 'user', content });
+  addTutorMessage('user', content);
+  tutorInput.value = '';
+  sendTutorButton.disabled = true;
+  sendTutorButton.textContent = 'Thinking...';
+  try {
+    const response = await fetch('/api/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...activeTutor, messages: chatMessages }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'The tutor could not answer right now.');
+    chatMessages.push({ role: 'assistant', content: data.reply });
+    addTutorMessage('assistant', data.reply);
+  } catch (error) {
+    addTutorMessage('assistant', `Sorry, ${error.message}`);
+  } finally {
+    sendTutorButton.disabled = false;
+    sendTutorButton.textContent = 'Ask';
+    tutorInput.focus();
+  }
+}
+
 function renderLesson(lesson) {
   const container = $('#lesson');
   container.innerHTML = '';
@@ -104,6 +165,13 @@ function renderLesson(lesson) {
       });
       wrapper.append(button);
     }
+    const tutorButton = el('button', 'ghost', 'Ask AI');
+    tutorButton.disabled = !aiAvailable;
+    tutorButton.title = aiAvailable ? 'Ask the tutor about this example' : 'Configure OPENAI_API_KEY to enable AI tutoring';
+    tutorButton.addEventListener('click', () =>
+      openTutor(lesson, { kind: 'step', stepIndex: index, label: `Example ${index + 1}: ${step.title}` }),
+    );
+    wrapper.append(tutorButton);
     if (step.takeaway) wrapper.append(el('div', 'aside-take', `Takeaway: ${step.takeaway}`));
     if (step.note) wrapper.append(el('div', 'aside-note', `Note: ${step.note}`));
     container.append(wrapper);
@@ -114,6 +182,11 @@ function renderLesson(lesson) {
     wrapper.append(el('h3', null, 'Challenge'));
     wrapper.append(el('p', null, lesson.challenge.prompt));
     if (lesson.challenge.hint) wrapper.append(el('div', 'aside-note', `Hint: ${lesson.challenge.hint}`));
+    const tutorButton = el('button', 'ghost', 'Ask AI for a hint');
+    tutorButton.disabled = !aiAvailable;
+    tutorButton.title = aiAvailable ? 'Ask the tutor about this challenge' : 'Configure OPENAI_API_KEY to enable AI tutoring';
+    tutorButton.addEventListener('click', () => openTutor(lesson, { kind: 'challenge', label: 'Challenge' }));
+    wrapper.append(tutorButton);
     container.append(wrapper);
   }
   container.scrollTop = 0;
@@ -151,7 +224,10 @@ async function loadSchema() {
 }
 
 async function init() {
-  lessons = await fetch('/api/lessons').then((r) => r.json());
+  const [lessonResponse, aiResponse] = await Promise.all([fetch('/api/lessons'), fetch('/api/ai/status')]);
+  lessons = await lessonResponse.json();
+  const aiStatus = await aiResponse.json();
+  aiAvailable = aiStatus.available;
   const select = $('#module-select');
   for (const lesson of lessons) {
     const option = el('option', null, `${lesson.id} · ${lesson.title}`);
@@ -160,10 +236,23 @@ async function init() {
   }
   select.addEventListener('change', () => {
     renderLesson(lessons.find((l) => l.id === select.value));
+    tutorEl.hidden = true;
+    activeTutor = null;
   });
   if (lessons.length) renderLesson(lessons[0]);
 
   $('#run').addEventListener('click', () => runSql(editor.value));
+  tutorForm.addEventListener('submit', sendTutorMessage);
+  tutorInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      tutorForm.requestSubmit();
+    }
+  });
+  $('#close-tutor').addEventListener('click', () => {
+    tutorEl.hidden = true;
+    activeTutor = null;
+  });
   $('#explain').addEventListener('click', () => {
     const sql = editor.value.trim().replace(/;\s*$/, '');
     if (!sql) return;
