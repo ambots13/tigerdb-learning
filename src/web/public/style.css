@@ -123,6 +123,52 @@ select {
 .step .aside-take { border-left-color: var(--green); }
 .step .aside-note { border-left-color: var(--accent); }
 
+.lesson-diagram {
+  margin: 12px 0;
+  padding: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(88, 166, 255, 0.35);
+  border-radius: 8px;
+  background: rgba(88, 166, 255, 0.05);
+}
+.lesson-diagram figcaption {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.lesson-diagram figcaption strong { color: var(--accent-2); }
+.diagram-canvas {
+  min-height: 80px;
+  overflow-x: auto;
+  border-radius: 6px;
+  background: var(--panel);
+}
+.diagram-canvas svg {
+  display: block;
+  width: 100%;
+  min-width: 460px;
+  height: auto;
+  margin: 0 auto;
+}
+.diagram-loading, .diagram-error {
+  margin: 0 !important;
+  padding: 18px;
+  color: var(--muted);
+  text-align: center;
+}
+.diagram-error { color: #ffb4ad; }
+.diagram-source { margin-top: 8px; font-size: 11.5px; }
+.diagram-source pre {
+  margin: 7px 0 0;
+  padding: 8px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: #c9d1d9;
+  font: 11px/1.45 var(--mono);
+  white-space: pre;
+}
+
 .hardcore-intro {
   margin: 12px 0 18px;
   padding: 14px;

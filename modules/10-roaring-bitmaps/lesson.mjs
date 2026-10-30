@@ -17,6 +17,21 @@ export default {
         'forgets who was counted, so distinct counts cannot be added safely.\n\n' +
         'A roaring bitmap keeps the integer members of the set in compressed form. That lets PostgreSQL ' +
         'combine the sets first and count them afterward.',
+      diagram: {
+        title: 'Why distinct counts do not add up',
+        description: 'User 2 occurs in both hours, so adding hourly counts double-counts that user.',
+        source: `flowchart LR
+  H1["Hour 1 set: 1, 2"] --> SUM["Add counts: 2 + 2 = 4"]
+  H2["Hour 2 set: 2, 3"] --> SUM
+  H1 --> UNION["Union members: 1, 2, 3"]
+  H2 --> UNION
+  UNION --> CORRECT["Correct distinct count: 3"]
+  SUM --> WRONG["Wrong because user 2 is counted twice"]
+  classDef good fill:#173b2a,stroke:#3fb950,color:#e6edf3
+  classDef bad fill:#3d2020,stroke:#f85149,color:#e6edf3
+  class CORRECT,UNION good
+  class SUM,WRONG bad`,
+      },
       sql: `SELECT
   2 + 2 AS wrong_sum_of_hourly_counts,
   cardinality(ARRAY[1, 2, 3]) AS correct_daily_count;`,
@@ -119,6 +134,21 @@ FROM generate_series(now() - INTERVAL '7 days', now(), INTERVAL '5 seconds')
         'collects every user_id in an hour into one bitmap. WITH NO DATA creates the rollup definition ' +
         'without filling it; refresh_continuous_aggregate then materialises the existing hours.\n\n' +
         'This is the key move: a distinct count cannot be combined later, but a set can.',
+      diagram: {
+        title: 'From raw visits to a reusable exact rollup',
+        description: 'Each hour stores membership once; larger time ranges union those hourly sets before counting.',
+        source: `flowchart LR
+  RAW["Raw visit rows"] -->|group by hour| BUILD["rb_build_agg(user_id)"]
+  BUILD --> H1["10:00 bitmap"]
+  BUILD --> H2["11:00 bitmap"]
+  BUILD --> H3["12:00 bitmap"]
+  H1 -->|rb_or_agg| RANGE["Combined range bitmap"]
+  H2 -->|rb_or_agg| RANGE
+  H3 -->|rb_or_agg| RANGE
+  RANGE -->|rb_cardinality| ANSWER["Exact unique users"]
+  classDef state fill:#1c2f45,stroke:#58a6ff,color:#e6edf3
+  class H1,H2,H3,RANGE state`,
+      },
       sql: [
         `CREATE MATERIALIZED VIEW visits_hourly
 WITH (timescaledb.continuous) AS
@@ -199,6 +229,25 @@ ORDER BY day;`,
         'the SQL:\n- returning = P AND C\n- churned = P ANDNOT C\n- new = C ANDNOT P\n\n' +
         'lag(users) places yesterday\'s bitmap in prev beside today\'s bitmap. Predict 3,000 returning, ' +
         '1,000 churned, and 1,000 new users for each pair of full days.',
+      diagram: {
+        title: 'Retention and churn as set operations',
+        description: 'The operand order determines whether a member is classified as churned or new.',
+        source: `flowchart TD
+  P["Previous set P"] --> RETURNING["Returning: P AND C"]
+  C["Current set C"] --> RETURNING
+  P --> CHURNED["Churned: P ANDNOT C"]
+  C -. "remove current members" .-> CHURNED
+  C --> NEW["New: C ANDNOT P"]
+  P -. "remove previous members" .-> NEW
+  RETURNING --> CHECKP["Previous = returning + churned"]
+  CHURNED --> CHECKP
+  RETURNING --> CHECKC["Current = returning + new"]
+  NEW --> CHECKC
+  classDef shared fill:#173b2a,stroke:#3fb950,color:#e6edf3
+  classDef changed fill:#3b3020,stroke:#f0883e,color:#e6edf3
+  class RETURNING shared
+  class CHURNED,NEW changed`,
+      },
       sql: `WITH daily AS (
   SELECT time_bucket('1 day', bucket) AS day, rb_or_agg(users) AS users
   FROM visits_hourly

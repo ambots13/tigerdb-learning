@@ -30,6 +30,10 @@ function lessonMarkdown(lesson) {
   lesson.steps.forEach((step, index) => {
     lines.push(`## ${index + 1}. ${step.title}`, '');
     if (step.explain) lines.push(step.explain, '');
+    if (step.diagram) {
+      if (step.diagram.description) lines.push(`_${step.diagram.description}_`, '');
+      lines.push('```mermaid', step.diagram.source.trim(), '```', '');
+    }
     if (step.sql) {
       const statements = Array.isArray(step.sql) ? step.sql : [step.sql];
       lines.push('```sql', statements.map((s) => s.trim()).join('\n\n'), '```', '');

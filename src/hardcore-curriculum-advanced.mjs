@@ -515,6 +515,23 @@ ORDER BY p.oid::regprocedure::text;`,
               'Require extension availability and upgrade testing in backup/restore and failover runbooks.',
             ], ['A lifecycle diagram with a safe ordering and one recovery limitation.'],
             ['10-src-pg-extensions', '10-src-repo'], {
+              diagram: {
+                title: 'Safe refresh and retention order',
+                description: 'Raw rows remain available until accepted late data has arrived and the final aggregate refresh is verified.',
+                source: `flowchart LR
+  OPEN["Bucket open"] --> LATE["Accept on-time and late events"]
+  LATE --> CLOSE["Lateness window closes"]
+  CLOSE --> REFRESH["Final bitmap refresh"]
+  REFRESH --> VERIFY{"Refresh verified?"}
+  VERIFY -->|No| REPAIR["Repair while raw rows still exist"]
+  REPAIR --> REFRESH
+  VERIFY -->|Yes| DELETE["Raw retention may delete rows"]
+  DELETE --> LIMIT["Later repair needs another durable source"]
+  classDef safe fill:#173b2a,stroke:#3fb950,color:#e6edf3
+  classDef warning fill:#3d2020,stroke:#f85149,color:#e6edf3
+  class REFRESH,VERIFY safe
+  class DELETE,LIMIT warning`,
+              },
               ...bitmapGuidance({
                 predictionQuestion: 'Can a deleted raw event be reconstructed from a bitmap that only retained its user ID?',
                 predictionChoices: ['No', 'Yes, including its timestamp', 'Always after VACUUM'],

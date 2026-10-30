@@ -30,6 +30,7 @@ const AI_IS_LOCAL = (() => {
 const AI_AVAILABLE = Boolean(AI_API_KEY) || AI_IS_LOCAL;
 
 app.use(express.json());
+app.use('/vendor/mermaid', express.static(path.join(here, '../../node_modules/mermaid/dist')));
 app.use(express.static(path.join(here, 'public')));
 
 app.get('/api/lessons', async (_req, res) => {
@@ -46,6 +47,7 @@ app.get('/api/lessons', async (_req, res) => {
         explain: step.explain ?? '',
         note: step.note ?? '',
         takeaway: step.takeaway ?? '',
+        diagram: step.diagram ?? null,
         sql: step.sql ? (Array.isArray(step.sql) ? step.sql.join('\n\n') : step.sql) : '',
       })),
       challenge: lesson.challenge
@@ -90,6 +92,7 @@ app.post('/api/ai/chat', async (req, res) => {
       type: `Example ${stepIndex + 1}: ${step.title}`,
       explanation: step.explain ?? '',
       sql: step.sql ? (Array.isArray(step.sql) ? step.sql.join('\n\n') : step.sql) : '',
+      diagram: step.diagram ?? null,
       takeaway: step.takeaway ?? '',
       note: step.note ?? '',
     };
@@ -114,6 +117,7 @@ app.post('/api/ai/chat', async (req, res) => {
       expectedResults: activity.steps?.map((step) => step.expectedResult) ?? [],
       hints: activity.hints,
       commonMistakes: activity.commonMistakes,
+      diagram: activity.diagram ?? null,
       references: activity.sourceRefs?.map((source) => source.relevantSummary) ?? [],
     };
   } else {

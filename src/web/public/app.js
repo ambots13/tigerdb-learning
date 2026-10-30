@@ -21,6 +21,25 @@ let activeTutor = null;
 let chatMessages = [];
 let learningMode = loadLearningMode();
 let hardcoreProgress = loadHardcoreProgress();
+let diagramSequence = 0;
+
+window.mermaid?.initialize({
+  startOnLoad: false,
+  securityLevel: 'strict',
+  theme: 'dark',
+  suppressErrorRendering: true,
+  flowchart: { htmlLabels: false, useMaxWidth: true },
+  themeVariables: {
+    background: '#161b22',
+    primaryColor: '#1c232c',
+    primaryTextColor: '#e6edf3',
+    primaryBorderColor: '#58a6ff',
+    lineColor: '#8b949e',
+    secondaryColor: '#2b3440',
+    tertiaryColor: '#0d1117',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  },
+});
 
 function loadLearningMode() {
   try {
@@ -245,6 +264,46 @@ function appendDisclosure(container, label, content, className = '') {
   details.append(el('summary', null, label));
   details.append(el('p', null, content));
   container.append(details);
+}
+
+function renderDiagram(diagram) {
+  const figure = el('figure', 'lesson-diagram');
+  const caption = el('figcaption');
+  caption.append(el('strong', null, diagram.title));
+  if (diagram.description) {
+    caption.append(document.createTextNode(` — ${diagram.description}`));
+  }
+  figure.append(caption);
+
+  const canvas = el('div', 'diagram-canvas');
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', diagram.description || diagram.title);
+  canvas.append(el('p', 'diagram-loading', 'Rendering diagram...'));
+  figure.append(canvas);
+
+  const source = el('details', 'diagram-source');
+  source.append(el('summary', null, 'View diagram as text'));
+  source.append(el('pre', null, diagram.source));
+  figure.append(source);
+
+  if (!window.mermaid) {
+    canvas.replaceChildren(el('p', 'diagram-error', 'Diagram renderer is unavailable. Use the text version below.'));
+    return figure;
+  }
+
+  const id = `lesson-diagram-${diagramSequence += 1}`;
+  window.mermaid.render(id, diagram.source)
+    .then(({ svg, bindFunctions }) => {
+      if (!figure.isConnected) return;
+      canvas.innerHTML = svg;
+      bindFunctions?.(canvas);
+    })
+    .catch((error) => {
+      console.error(`Could not render diagram "${diagram.title}".`, error);
+      canvas.replaceChildren(el('p', 'diagram-error', 'The diagram could not be rendered. Use the text version below.'));
+      source.open = true;
+    });
+  return figure;
 }
 
 function updateHardcoreProgress(lesson) {
@@ -472,6 +531,8 @@ function renderDeepActivity(lesson, activity, sourceIndex) {
   }
   card.append(instructions);
 
+  if (activity.diagram) card.append(renderDiagram(activity.diagram));
+
   if (activity.sql) {
     const insights = Object.fromEntries(
       (activity.sqlWalkthrough ?? []).map((entry) => [
@@ -640,6 +701,7 @@ function renderLesson(lesson) {
       );
     }
     if (step.explain) wrapper.append(el('p', null, step.explain));
+    if (step.diagram) wrapper.append(renderDiagram(step.diagram));
     if (step.sql) {
       wrapper.append(window.SqlGuide.render(step.sql, step.title, step.explain));
       const button = el('button', 'ghost', 'Load into editor');
