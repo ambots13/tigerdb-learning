@@ -724,13 +724,16 @@
     return wrapper;
   }
 
-  function render(sql, title, context) {
+  function render(sql, title, context, contextualInsights = {}) {
     const pre = document.createElement('pre');
     pre.className = 'sql guided-sql';
     pre.setAttribute('aria-label', `${title} SQL. Focus highlighted terms for explanations.`);
     const tokens = tokenize(sql);
     tokens.forEach((token, index) => {
-      const insight = explainToken(tokens, index, title, context);
+      const exact = contextualInsights[token] ?? contextualInsights[token.toUpperCase()];
+      const insight = exact
+        ? [exact.title ?? token, exact.what, exact.why]
+        : explainToken(tokens, index, title, context);
       if (!insight) {
         pre.append(document.createTextNode(token));
         return;

@@ -233,7 +233,10 @@ async function sendTutorMessage(event) {
 
 function appendList(container, className, items) {
   const list = el('ul', className);
-  for (const item of items) list.append(el('li', null, item));
+  for (const item of items) {
+    const text = typeof item === 'string' ? item : item.item ?? item.example ?? '';
+    list.append(el('li', null, text));
+  }
   container.append(list);
 }
 
@@ -303,12 +306,16 @@ function appendDeepMasteryCheck(container, lesson, activity) {
     saveHardcoreProgress();
     updateHardcoreProgress(lesson);
   });
+  const firstEvidence = activity.evidence?.[0];
+  const evidenceText = typeof firstEvidence === 'string'
+    ? firstEvidence
+    : firstEvidence?.item ?? 'the required evidence';
   row.append(
     checkbox,
     document.createTextNode(
       activity.type === 'assessment'
         ? 'I completed this closed-book and verified every required outcome'
-        : 'I completed this activity and recorded the required evidence',
+        : `I completed this activity and recorded: ${evidenceText}`,
     ),
   );
   container.append(row);
@@ -429,22 +436,61 @@ function renderDeepActivity(lesson, activity, sourceIndex) {
   heading.append(el('span', `claim-kind claim-${activity.claim}`, activity.claim));
   card.append(heading);
   card.append(el('h4', null, activity.title));
-  card.append(el('p', 'activity-purpose', activity.purpose));
+  const tutorButton = el('button', 'ghost', 'Ask tutor about this activity');
+  tutorButton.type = 'button';
+  tutorButton.addEventListener('click', () =>
+    openTutor(lesson, { kind: 'hardcore', activityId: activity.id, label: activity.title }),
+  );
+  card.append(tutorButton);
+  card.append(el('p', 'activity-purpose', activity.goal));
+  appendDisclosure(card, 'Why this matters', activity.whyItMatters, 'activity-why');
+  if (activity.prerequisites?.length) {
+    card.append(el('h5', null, 'Before you begin'));
+    appendList(card, 'activity-prerequisites', activity.prerequisites);
+  }
+  if (activity.vocabulary?.length) {
+    const vocabulary = el('details', 'activity-vocabulary');
+    vocabulary.append(el('summary', null, 'Words to know'));
+    for (const word of activity.vocabulary) {
+      const definition = el('p');
+      definition.append(el('strong', null, `${word.term}: `));
+      definition.append(document.createTextNode(`${word.simpleMeaning} ${word.technicalMeaning}`));
+      if (word.example) definition.append(el('code', null, ` Example: ${word.example}`));
+      vocabulary.append(definition);
+    }
+    card.append(vocabulary);
+  }
 
   const instructions = el('ol', 'activity-instructions');
-  for (const instruction of activity.instructions) {
-    instructions.append(el('li', null, instruction));
+  for (const step of activity.steps ?? []) {
+    const item = el('li');
+    item.append(el('strong', null, step.action));
+    item.append(el('p', null, `Why: ${step.reason}`));
+    item.append(el('p', 'expected-result', `Expected result: ${step.expectedResult} ${step.explanation}`));
+    item.append(el('p', 'troubleshooting', `If it differs: ${step.troubleshooting}`));
+    instructions.append(item);
   }
   card.append(instructions);
 
   if (activity.sql) {
-    card.append(window.SqlGuide.render(activity.sql, activity.title, activity.purpose));
+    const insights = Object.fromEntries(
+      (activity.sqlWalkthrough ?? []).map((entry) => [
+        entry.fragment,
+        { title: entry.fragment, what: entry.explanation, why: entry.lessonConnection },
+      ]),
+    );
+    card.append(window.SqlGuide.render(activity.sql, activity.title, activity.goal, insights));
     appendSqlAction(card, activity.sql, 'Load lab SQL');
   }
   if (activity.starterSql) {
     appendSqlAction(card, activity.starterSql, 'Load starter SQL');
   }
-  if (activity.hint) appendDisclosure(card, 'Progressive hint', activity.hint, 'drill-help');
+  if (activity.hints?.length) {
+    const hints = el('details', 'drill-help');
+    hints.append(el('summary', null, 'Progressive hints'));
+    for (const hint of activity.hints) hints.append(el('p', null, `Hint ${hint.level}: ${hint.text}`));
+    card.append(hints);
+  } else if (activity.hint) appendDisclosure(card, 'Progressive hint', activity.hint, 'drill-help');
   if (activity.solution) {
     const solution = el('details', 'drill-help solution');
     solution.append(el('summary', null, 'Reveal reference approach'));
@@ -454,6 +500,24 @@ function renderDeepActivity(lesson, activity, sourceIndex) {
     appendSqlAction(solution, activity.solution, 'Run reference', true);
     card.append(solution);
   }
+  if (activity.workedAnswer) {
+    const answer = el('details', 'drill-help solution');
+    answer.append(el('summary', null, 'Reveal worked answer'));
+    answer.append(el('p', null, activity.workedAnswer.answer));
+    answer.append(el('p', null, activity.workedAnswer.explanation));
+    if (activity.workedAnswer.template) answer.append(el('p', null, `Template: ${activity.workedAnswer.template}`));
+    if (activity.workedAnswer.example) answer.append(el('p', null, `Example: ${activity.workedAnswer.example}`));
+    appendList(answer, 'activity-prerequisites', activity.workedAnswer.acceptableVariations ?? []);
+    card.append(answer);
+  }
+  if (activity.commonMistakes?.length) {
+    const mistakes = el('details', 'drill-help');
+    mistakes.append(el('summary', null, 'Common mistakes and recovery'));
+    for (const mistake of activity.commonMistakes) {
+      mistakes.append(el('p', null, `${mistake.symptom} Cause: ${mistake.cause} Fix: ${mistake.fix}`));
+    }
+    card.append(mistakes);
+  }
 
   const evidence = el('div', 'evidence-box');
   evidence.append(el('strong', null, 'Evidence to record'));
@@ -462,7 +526,7 @@ function renderDeepActivity(lesson, activity, sourceIndex) {
 
   if (activity.sourceIds?.length) {
     const sources = el('p', 'activity-sources');
-    sources.append(document.createTextNode('Verify: '));
+    sources.append(document.createTextNode('Read this exact part: '));
     activity.sourceIds.forEach((sourceId, index) => {
       const source = sourceIndex.get(sourceId);
       if (!source) return;
@@ -471,6 +535,9 @@ function renderDeepActivity(lesson, activity, sourceIndex) {
       link.target = '_blank';
       link.rel = 'noreferrer';
       sources.append(link);
+      if (source.locator?.heading) {
+        sources.append(document.createTextNode(` (${source.locator.heading}${source.locator.subheading ? ` → ${source.locator.subheading}` : ''})`));
+      }
       if (index < activity.sourceIds.length - 1) {
         sources.append(document.createTextNode(' · '));
       }
@@ -488,7 +555,7 @@ function renderDeepCurriculum(container, lesson) {
 
   const sourceIndex = new Map(deepDive.sources.map((source) => [source.id, source]));
   const overview = el('section', 'deep-overview');
-  overview.append(el('div', 'eyebrow', '2–4 hour engineering intensive'));
+  overview.append(el('div', 'eyebrow', 'Estimated guided practice'));
   overview.append(el('h3', null, deepDive.title));
   overview.append(el('p', null, deepDive.summary));
   overview.append(el('h4', null, 'Mastery outcomes'));
@@ -498,7 +565,7 @@ function renderDeepCurriculum(container, lesson) {
     el(
       'p',
       'time-budget',
-      `${deepDive.phases.length} phases · ${deepDive.phases.flatMap((phase) => phase.activities).length} activities · ${time} minutes`,
+      `${deepDive.phases.length} phases · ${deepDive.phases.flatMap((phase) => phase.activities).length} activities · about ${time} minutes (estimate, not a deadline)`,
     ),
   );
   container.append(overview);
@@ -537,7 +604,8 @@ function renderDeepCurriculum(container, lesson) {
     link.target = '_blank';
     link.rel = 'noreferrer';
     item.append(link);
-    item.append(document.createTextNode(` — ${source.note}`));
+    item.append(document.createTextNode(` — ${source.readFor ?? source.note ?? source.relevantSummary}`));
+    if (source.locator?.heading) item.append(el('small', null, ` Read: ${source.locator.heading}${source.locator.subheading ? ` → ${source.locator.subheading}` : ''}.`));
     list.append(item);
   }
   sources.append(list);

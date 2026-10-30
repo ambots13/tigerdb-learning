@@ -15,6 +15,7 @@
     "play": "node src/web/server.mjs",
     "docs": "node src/docs.mjs",
     "test": "node --test",
+    "audit:references": "node scripts/audit-hardcore-references.mjs",
     "verify": "node src/verify.mjs"
   },
   "dependencies": {

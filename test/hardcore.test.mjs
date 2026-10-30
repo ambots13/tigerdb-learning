@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { hardcoreByLesson, getHardcoreLesson } from '../src/hardcore.mjs';
 import { loadAllLessons } from '../src/lessons.mjs';
+import { validateHardcoreLesson } from '../src/hardcore-validation.mjs';
 
 test('every lesson has a complete Hardcore Mode supplement', async () => {
   const lessons = await loadAllLessons();
@@ -26,6 +27,7 @@ test('every lesson has a complete Hardcore Mode supplement', async () => {
     assert.ok(hardcore.deepDive.phases.length >= 8);
     assert.ok(hardcore.deepDive.outcomes.length >= 4);
     assert.ok(hardcore.deepDive.sources.length >= 3);
+    assert.deepEqual(validateHardcoreLesson(hardcore), []);
 
     const sourceIds = new Set(hardcore.deepDive.sources.map((source) => source.id));
     const activities = hardcore.deepDive.phases.flatMap((phase) => phase.activities);
