@@ -82,6 +82,24 @@ FROM generate_series(1, 500) AS i;`,
       explain:
         'The watermark is the boundary the refresh has reached. Everything before it is served from stored ' +
         'buckets; everything after it can be filled in live.',
+      diagram: {
+        title: 'The watermark separates stored history from the live tail',
+        description: 'A late write behind the watermark changes raw history but remains absent from the stored rollup until a refresh covers that bucket.',
+        source: `flowchart LR
+  OLD["Older time"] --> STORED["Stored aggregate buckets"]
+  STORED --> WATER["Watermark"]
+  WATER --> LIVE["Newest raw rows read in real time"]
+  LATE["Late row arrives behind watermark"] --> RAW["Raw historical bucket changes"]
+  RAW --> INVALID["Invalidation recorded"]
+  INVALID --> TARGET["Targeted refresh"]
+  TARGET --> STORED
+  classDef boundary fill:#1c2f45,stroke:#58a6ff,color:#e6edf3
+  classDef repair fill:#173b2a,stroke:#3fb950,color:#e6edf3
+  classDef warning fill:#3d2020,stroke:#f85149,color:#e6edf3
+  class WATER boundary
+  class TARGET repair
+  class LATE,RAW,INVALID warning`,
+      },
       sql: `SELECT
   user_view_name AS cagg,
   _timescaledb_functions.to_timestamp(

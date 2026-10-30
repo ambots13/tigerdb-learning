@@ -44,6 +44,13 @@ test('every lesson has a complete Hardcore Mode supplement', async () => {
       for (const sourceId of activity.sourceIds ?? []) {
         assert.ok(sourceIds.has(sourceId), `${lesson.id} references unknown source ${sourceId}`);
       }
+      if (!activity.sql && !activity.starterSql) {
+        assert.ok(activity.multipleChoice, `${activity.id} needs a multiple-choice check`);
+        assert.ok(activity.multipleChoice.options.length >= 3);
+        assert.ok(Number.isInteger(activity.multipleChoice.answer));
+        assert.ok(activity.multipleChoice.options[activity.multipleChoice.answer]);
+        assert.ok(activity.multipleChoice.explanation);
+      }
     }
 
     for (const checkpoint of hardcore.checkpoints) {

@@ -68,6 +68,9 @@ function lessonProgress(lesson) {
   if (!progress.deep || typeof progress.deep !== 'object' || Array.isArray(progress.deep)) {
     progress.deep = {};
   }
+  if (!progress.multipleChoice || typeof progress.multipleChoice !== 'object' || Array.isArray(progress.multipleChoice)) {
+    progress.multipleChoice = {};
+  }
   return progress;
 }
 
@@ -281,6 +284,18 @@ function renderDiagram(diagram) {
   canvas.append(el('p', 'diagram-loading', 'Rendering diagram...'));
   figure.append(canvas);
 
+  const controls = el('div', 'diagram-controls');
+  controls.setAttribute('role', 'group');
+  controls.setAttribute('aria-label', `Zoom controls for ${diagram.title}`);
+  controls.hidden = true;
+  const zoomOut = el('button', 'ghost', 'Zoom out');
+  const resetZoom = el('button', 'ghost', 'Reset');
+  const zoomIn = el('button', 'ghost', 'Zoom in');
+  const zoomStatus = el('span', 'diagram-zoom-status', '100%');
+  zoomStatus.setAttribute('aria-live', 'polite');
+  controls.append(zoomOut, resetZoom, zoomIn, zoomStatus);
+  figure.append(controls);
+
   const source = el('details', 'diagram-source');
   source.append(el('summary', null, 'View diagram as text'));
   source.append(el('pre', null, diagram.source));
@@ -297,6 +312,30 @@ function renderDiagram(diagram) {
       if (!figure.isConnected) return;
       canvas.innerHTML = svg;
       bindFunctions?.(canvas);
+      const rendered = canvas.querySelector('svg');
+      let zoom = 100;
+      const applyZoom = (nextZoom) => {
+        const oldWidth = canvas.scrollWidth;
+        const centerRatio = oldWidth
+          ? (canvas.scrollLeft + canvas.clientWidth / 2) / oldWidth
+          : 0.5;
+        zoom = Math.min(250, Math.max(75, nextZoom));
+        rendered.style.width = `${zoom}%`;
+        rendered.style.minWidth = `${4.6 * zoom}px`;
+        rendered.style.maxWidth = 'none';
+        zoomStatus.textContent = `${zoom}%`;
+        zoomOut.disabled = zoom === 75;
+        zoomIn.disabled = zoom === 250;
+        resetZoom.disabled = zoom === 100;
+        requestAnimationFrame(() => {
+          canvas.scrollLeft = centerRatio * canvas.scrollWidth - canvas.clientWidth / 2;
+        });
+      };
+      zoomOut.addEventListener('click', () => applyZoom(zoom - 25));
+      resetZoom.addEventListener('click', () => applyZoom(100));
+      zoomIn.addEventListener('click', () => applyZoom(zoom + 25));
+      controls.hidden = false;
+      applyZoom(100);
     })
     .catch((error) => {
       console.error(`Could not render diagram "${diagram.title}".`, error);
@@ -457,6 +496,55 @@ function renderDrill(lesson, drill, index) {
   return card;
 }
 
+function renderActivityMultipleChoice(lesson, activity) {
+  const check = activity.multipleChoice;
+  const saved = lessonProgress(lesson).multipleChoice[activity.id];
+  const card = el('section', 'activity-check');
+  card.append(el('div', 'eyebrow', 'Quick check'));
+  card.append(el('h5', null, check.question));
+  const options = el('div', 'checkpoint-options');
+  const feedback = el('p', 'checkpoint-feedback');
+  feedback.hidden = saved === undefined;
+
+  check.options.forEach((option, optionIndex) => {
+    const button = el('button', 'answer-option', option);
+    button.type = 'button';
+    button.dataset.index = optionIndex;
+    button.disabled = saved === check.answer;
+    button.classList.toggle('correct', saved === check.answer && optionIndex === check.answer);
+    button.classList.toggle('incorrect', saved !== undefined && saved !== check.answer && optionIndex === saved);
+    button.addEventListener('click', () => {
+      const correct = optionIndex === check.answer;
+      for (const candidate of options.querySelectorAll('button')) {
+        candidate.classList.remove('correct', 'incorrect');
+        if (correct) {
+          candidate.disabled = true;
+          candidate.classList.toggle('correct', Number(candidate.dataset.index) === check.answer);
+        }
+      }
+      button.classList.toggle('incorrect', !correct);
+      feedback.className = `checkpoint-feedback ${correct ? 'correct' : 'incorrect'}`;
+      feedback.textContent = correct
+        ? `Correct. ${check.explanation}`
+        : 'Not quite. Re-read the activity goal and the evidence you are expected to record, then try again.';
+      feedback.hidden = false;
+      lessonProgress(lesson).multipleChoice[activity.id] = optionIndex;
+      saveHardcoreProgress();
+    });
+    options.append(button);
+  });
+
+  if (saved !== undefined) {
+    const correct = saved === check.answer;
+    feedback.className = `checkpoint-feedback ${correct ? 'correct' : 'incorrect'}`;
+    feedback.textContent = correct
+      ? `Mastered. ${check.explanation}`
+      : 'Not quite. Re-read the activity goal and the evidence you are expected to record, then try again.';
+  }
+  card.append(options, feedback);
+  return card;
+}
+
 function renderHardcoreIntro(container, lesson) {
   const hardcore = lesson.hardcore;
   const intro = el('section', 'hardcore-intro');
@@ -532,6 +620,9 @@ function renderDeepActivity(lesson, activity, sourceIndex) {
   card.append(instructions);
 
   if (activity.diagram) card.append(renderDiagram(activity.diagram));
+  if (!activity.sql && !activity.starterSql && activity.multipleChoice) {
+    card.append(renderActivityMultipleChoice(lesson, activity));
+  }
 
   if (activity.sql) {
     const insights = Object.fromEntries(

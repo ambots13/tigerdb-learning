@@ -48,6 +48,26 @@ export function normalizeActivity(activity, sourceIndex) {
   const sourceRefs = (activity.sourceIds ?? []).map((sourceId) => sourceIndex.get(sourceId)).filter(Boolean);
   const steps = activity.steps ?? instructions.map((instruction, index) => normalizeStep(instruction, index, activity));
   const typical = Math.max(15, Math.round((steps.length * 4 + (sql ? 5 : 8))));
+  const firstEvidence = typeof evidence[0] === 'string' ? evidence[0] : evidence[0]?.item;
+  const multipleChoice = sql ? undefined : activity.multipleChoice ?? (
+    Number.isInteger(activity.beforeYouRun?.answer)
+      ? {
+          question: activity.beforeYouRun.predictionQuestion,
+          options: activity.beforeYouRun.predictionChoices,
+          answer: activity.beforeYouRun.answer,
+          explanation: activity.beforeYouRun.explanation,
+        }
+      : {
+          question: `Which evidence would best show that you completed “${activity.title}”?`,
+          options: [
+            firstEvidence ?? 'The concrete evidence named by the activity.',
+            'A successful but unrelated SQL query.',
+            'A conclusion based only on intuition, with no recorded reasoning.',
+          ],
+          answer: 0,
+          explanation: `Completion requires the named evidence: ${firstEvidence ?? 'a concrete result or written explanation that supports the claim.'}`,
+        }
+  );
 
   return {
     ...activity,
@@ -61,6 +81,7 @@ export function normalizeActivity(activity, sourceIndex) {
       predictionChoices: ['A single value', 'Several rows with named columns', 'A query plan or written explanation'],
       explanation: 'A prediction gives you something specific to compare with the real result.',
     },
+    multipleChoice,
     steps,
     sqlWalkthrough: activity.sqlWalkthrough ?? (sql ? [{ fragment: sql, explanation: 'Run this statement after making your prediction.', lessonConnection: activity.purpose }] : []),
     hints: activity.hints ?? [

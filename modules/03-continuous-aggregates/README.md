@@ -32,6 +32,24 @@ GROUP BY bucket, sensor_id;
 
 A continuous aggregate is a materialized view that TimescaleDB keeps up to date incrementally: it tracks which time ranges changed and re-materializes only those. The definition must contain a time_bucket() on the hypertable's time column. WITH NO DATA means "create it empty and let me decide when to fill it" - always use it on a large table.
 
+_TimescaleDB records which time range changed, refreshes only the affected summary buckets, and can read the newest unsummarized rows directly._
+
+```mermaid
+flowchart LR
+  WRITE["New or corrected reading"] --> RAW["Raw readings table"]
+  WRITE --> INVALID["Note which time range changed"]
+  INVALID --> REFRESH["Refresh affected hours"]
+  RAW --> REFRESH
+  REFRESH --> STORED["Saved hourly summaries"]
+  STORED --> QUERY["Query result"]
+  RAW -->|newest rows not summarized yet| LIVE["Read recent rows directly"]
+  LIVE --> QUERY
+  classDef stored fill:#1c2f45,stroke:#58a6ff,color:#e6edf3
+  classDef action fill:#173b2a,stroke:#3fb950,color:#e6edf3
+  class STORED,LIVE stored
+  class REFRESH action
+```
+
 ```sql
 DROP MATERIALIZED VIEW IF EXISTS readings_daily CASCADE;
 DROP MATERIALIZED VIEW IF EXISTS readings_hourly CASCADE;

@@ -196,6 +196,24 @@ LIMIT 6;
 
 state_agg, heartbeat_agg, candlestick, and time_weight are documented two-step aggregates whose states can be combined with matching rollup functions. LTTB is a downsampling aggregate returning a timevector and should not be presented as the same rollup pattern.
 
+_Intermediate states can be rolled up across buckets and reused by several accessors; LTTB follows a separate downsampling path._
+
+```mermaid
+flowchart LR
+  RAW["Raw readings"] --> STATE["Intermediate aggregate state per bucket"]
+  STATE --> ROLLUP["rollup combines bucket states"]
+  ROLLUP --> A1["Ask for duration, average, delta, or integral"]
+  ROLLUP --> A2["Ask another question from the same stored state"]
+  RAW --> LTTB["LTTB downsampling"]
+  LTTB --> VECTOR["A smaller set of representative points"]
+  STATE --> NOTE["Path 1: reusable aggregate state"]
+  VECTOR --> NOTE2["Path 2: reduced points; separate from rollup"]
+  classDef state fill:#1c2f45,stroke:#58a6ff,color:#e6edf3
+  classDef answer fill:#173b2a,stroke:#3fb950,color:#e6edf3
+  class STATE,ROLLUP state
+  class A1,A2,VECTOR,NOTE,NOTE2 answer
+```
+
 ```sql
 SELECT
   time_bucket('12 hours', time) AS bucket,

@@ -53,13 +53,21 @@ const bitmapGuidance = ({
   vocabulary = [],
   prerequisites = ['Complete standard module 10', 'Know SELECT, WHERE, GROUP BY, and common table expressions'],
   commonMistakes,
+  correctChoice = 0,
 }) => ({
   prerequisites,
   vocabulary: [...bitmapVocabulary, ...vocabulary],
   beforeYouRun: {
     predictionQuestion,
     predictionChoices,
+    answer: correctChoice,
     explanation: 'Commit to an answer before revealing the result; correcting a prediction is stronger practice than only reading.',
+  },
+  multipleChoice: {
+    question: predictionQuestion,
+    options: predictionChoices,
+    answer: correctChoice,
+    explanation,
   },
   steps,
   hints: hints.map((text, index) => ({ level: index + 1, text })),
@@ -295,6 +303,7 @@ WHERE a.name = 'roaringbitmap';`,
               ...bitmapGuidance({
                 predictionQuestion: 'If roaringbitmap is available but not installed, which version column should be empty?',
                 predictionChoices: ['default_version', 'installed_version', 'Both columns'],
+                correctChoice: 1,
                 steps: [
                   microstep(
                     'Run the catalog query before installing anything.',

@@ -189,15 +189,15 @@ _The operand order determines whether a member is classified as churned or new._
 
 ```mermaid
 flowchart TD
-  P["Previous set P"] --> RETURNING["Returning: P AND C"]
-  C["Current set C"] --> RETURNING
-  P --> CHURNED["Churned: P ANDNOT C"]
-  C -. "remove current members" .-> CHURNED
-  C --> NEW["New: C ANDNOT P"]
-  P -. "remove previous members" .-> NEW
-  RETURNING --> CHECKP["Previous = returning + churned"]
+  P["Yesterday P: 1, 2, 3"] --> RETURNING["In both days: 2, 3 are returning"]
+  C["Today C: 2, 3, 4"] --> RETURNING
+  P --> CHURNED["Only yesterday: 1 churned"]
+  C -. "remove today's members" .-> CHURNED
+  C --> NEW["Only today: 4 is new"]
+  P -. "remove yesterday's members" .-> NEW
+  RETURNING --> CHECKP["Yesterday = returning plus churned"]
   CHURNED --> CHECKP
-  RETURNING --> CHECKC["Current = returning + new"]
+  RETURNING --> CHECKC["Today = returning plus new"]
   NEW --> CHECKC
   classDef shared fill:#173b2a,stroke:#3fb950,color:#e6edf3
   classDef changed fill:#3b3020,stroke:#f0883e,color:#e6edf3

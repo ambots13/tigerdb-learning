@@ -217,6 +217,24 @@ LIMIT 6;`,
         'physical order. Chosen for medium-sized result sets where random fetches would be too scattered.\n' +
         '- Custom Scan - a TimescaleDB node; see the next step.\n\n' +
         'The query below is deliberately shaped to produce a bitmap scan.',
+      diagram: {
+        title: 'A scan node describes how PostgreSQL reaches the rows',
+        description: 'The planner estimates the work for several access paths and chooses one; the arrows below describe where each path reads data.',
+        source: `flowchart TD
+  QUERY["Query filters and requested columns"] --> CHOICE{"Planner chooses an access path"}
+  CHOICE --> SEQ["Seq Scan: read table pages directly"]
+  CHOICE --> INDEX["Index Scan: find entries in index"]
+  CHOICE --> ONLY["Index Only Scan: answer mostly from index"]
+  CHOICE --> BITMAP["Bitmap Scan: collect matching row locations"]
+  CHOICE --> CUSTOM["TimescaleDB Custom Scan: use chunks or columnar batches"]
+  INDEX --> HEAP["Then read matching table pages"]
+  BITMAP --> HEAP
+  ONLY -. "may still check table visibility" .-> HEAP
+  classDef choice fill:#1c2f45,stroke:#58a6ff,color:#e6edf3
+  classDef custom fill:#173b2a,stroke:#3fb950,color:#e6edf3
+  class CHOICE choice
+  class CUSTOM custom`,
+      },
       sql: `EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY OFF)
 SELECT count(*) FROM readings
 WHERE battery < 65

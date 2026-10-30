@@ -17,6 +17,24 @@ Every policy is a background job. Inspect them, run them on demand, and write yo
 
 Refresh policies, columnstore policies and retention policies are all rows in the same job scheduler. If you completed modules 03 and 04 you already created two of these.
 
+_A policy is simply a scheduled job: the scheduler wakes it up, and the job performs one maintenance action._
+
+```mermaid
+flowchart TD
+  SCHED["TimescaleDB job scheduler"] --> REFRESH["Continuous aggregate refresh job"]
+  SCHED --> COLUMN["Columnstore policy job"]
+  SCHED --> RETAIN["Retention policy job"]
+  SCHED --> CUSTOM["Custom background job"]
+  REFRESH --> CAGG["Update saved summary buckets"]
+  COLUMN --> CHUNKS["Convert older chunks to column format"]
+  RETAIN --> DROP["Expired chunks removed"]
+  CUSTOM --> PROC["Run your procedure"]
+  classDef scheduler fill:#1c2f45,stroke:#58a6ff,color:#e6edf3
+  classDef effect fill:#173b2a,stroke:#3fb950,color:#e6edf3
+  class SCHED scheduler
+  class CAGG,CHUNKS,DROP,PROC effect
+```
+
 ```sql
 SELECT job_id, application_name, proc_name, schedule_interval, hypertable_name
 FROM timescaledb_information.jobs

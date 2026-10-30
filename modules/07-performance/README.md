@@ -85,6 +85,20 @@ ALTER TABLE readings DROP COLUMN firmware;
 
 A documented starting criterion is that indexes for all chunks currently receiving writes fit in roughly 25% of available memory. Estimate index growth, then measure: overly wide chunks pressure the cache, while overly narrow chunks increase metadata and planning overhead.
 
+_Narrow chunks multiply planning metadata; wide chunks enlarge active indexes and reduce pruning precision._
+
+```mermaid
+flowchart LR
+  NARROW["Too narrow"] --> NM["Many chunks and more planning work"]
+  BALANCED["Measured interval"] --> BM["Active indexes fit memory and pruning stays useful"]
+  WIDE["Too wide"] --> WM["Large active indexes and coarse pruning"]
+  MEASURE["Observe ingest, index growth, memory, and plans"] --> BALANCED
+  classDef bad fill:#3d2020,stroke:#f85149,color:#e6edf3
+  classDef good fill:#173b2a,stroke:#3fb950,color:#e6edf3
+  class NARROW,WIDE,NM,WM bad
+  class BALANCED,BM,MEASURE good
+```
+
 ```sql
 SELECT
   h.hypertable_name,

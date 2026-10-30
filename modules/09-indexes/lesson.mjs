@@ -261,6 +261,34 @@ END $$;`,
         '- Equality on columnar data → bloom sparse index\n' +
         '- Ranges on columnar data → minmax sparse index\n\n' +
         'Then confirm with pg_stat_user_indexes and delete whatever nothing uses.',
+      diagram: {
+        title: 'Choose an index from the query shape',
+        description: 'Ask one question at a time. The result is a candidate, not a guarantee: always verify it with the real query plan.',
+        source: `flowchart TD
+  START{"Is the data columnar?"}
+  START -->|Yes, equality filter| BLOOM["Try bloom metadata"]
+  START -->|Yes, range filter| MINMAX["Try minmax metadata"]
+  START -->|No| CONTENT{"Looking inside JSONB or an array?"}
+  CONTENT -->|Yes| GIN["Try GIN"]
+  CONTENT -->|No| COMPUTED{"Filtering on a calculation?"}
+  COMPUTED -->|Yes| EXPR["Try an expression index"]
+  COMPUTED -->|No| SUBSET{"Always the same small subset?"}
+  SUBSET -->|Yes| PARTIAL["Try a partial index"]
+  SUBSET -->|No| HUGE{"Huge, append-only, and naturally ordered?"}
+  HUGE -->|Yes| BRIN["Compare BRIN with B-tree"]
+  HUGE -->|No| BTREE["Start with B-tree"]
+  BLOOM --> VERIFY["Verify using EXPLAIN and usage statistics"]
+  MINMAX --> VERIFY
+  GIN --> VERIFY
+  EXPR --> VERIFY
+  PARTIAL --> VERIFY
+  BRIN --> VERIFY
+  BTREE --> VERIFY
+  classDef decision fill:#1c2f45,stroke:#58a6ff,color:#e6edf3
+  classDef verify fill:#173b2a,stroke:#3fb950,color:#e6edf3
+  class START decision
+  class VERIFY verify`,
+      },
       sql: `SELECT
   regexp_replace(indexrelname, '^_hyper_\\d+_\\d+_chunk_', '') AS index_name,
   sum(idx_scan)                                     AS scans,

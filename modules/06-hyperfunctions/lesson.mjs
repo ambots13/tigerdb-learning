@@ -33,6 +33,28 @@ ORDER BY bucket;`,
       explain:
         'gapfill emits a row for every bucket in the requested range, whether or not data exists. The range ' +
         'comes from the WHERE clause, so it needs explicit start and end bounds on the time column.',
+      diagram: {
+        title: 'Gapfill creates the missing time buckets',
+        description: 'The original query omits empty hours; gapfill restores the complete time axis and leaves missing values as NULL.',
+        source: `flowchart LR
+  BEFORE["Before: 09 value, 10 value, 13 value, 14 value"] --> GAP["time_bucket_gapfill"]
+  GAP --> B9["09 value"]
+  GAP --> B10["10 value"]
+  GAP --> B11["11 NULL"]
+  GAP --> B12["12 NULL"]
+  GAP --> B13["13 value"]
+  GAP --> B14["14 value"]
+  B9 --> AFTER["After: every requested hour exists"]
+  B10 --> AFTER
+  B11 --> AFTER
+  B12 --> AFTER
+  B13 --> AFTER
+  B14 --> AFTER
+  classDef missing fill:#3d2020,stroke:#f85149,color:#e6edf3
+  classDef complete fill:#173b2a,stroke:#3fb950,color:#e6edf3
+  class B11,B12 missing
+  class AFTER complete`,
+      },
       sql: `SELECT
   time_bucket_gapfill('1 hour', time) AS bucket,
   count(*)                            AS samples,

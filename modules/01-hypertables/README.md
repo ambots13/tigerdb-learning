@@ -17,6 +17,23 @@ Create a hypertable, watch chunks appear, and see the planner skip the ones it d
 
 A hypertable looks and behaves like an ordinary table: you INSERT, SELECT, UPDATE and DELETE with standard SQL. Underneath, rows are automatically partitioned by time into chunks. The only new thing here is the WITH (tsdb.hypertable) clause. The first timestamp column becomes the partitioning column unless you name one explicitly.
 
+_Applications use one table while TimescaleDB routes each row to the chunk covering its timestamp._
+
+```mermaid
+flowchart TD
+  APP["Your app inserts into one table"] --> TABLE["conditions hypertable"]
+  TABLE -->|timestamp falls in days 1 to 7| C1["Chunk 1"]
+  TABLE -->|timestamp falls in days 8 to 14| C2["Chunk 2"]
+  TABLE -->|timestamp falls in days 15 to 21| C3["Chunk 3"]
+  QUERY["App queries conditions for days 15 to 21"] --> PRUNE["TimescaleDB checks the requested time range"]
+  PRUNE --> C3
+  C3 --> RESULT["Chunks 1 and 2 do not need to be read"]
+  classDef logical fill:#1c2f45,stroke:#58a6ff,color:#e6edf3
+  classDef physical fill:#173b2a,stroke:#3fb950,color:#e6edf3
+  class TABLE,QUERY,PRUNE logical
+  class C1,C2,C3 physical
+```
+
 ```sql
 DROP TABLE IF EXISTS conditions;
 

@@ -224,6 +224,25 @@ LIMIT 5;
 
 One hypertable, one continuous aggregate, three policies. That is the whole pipeline: ingest stays plain SQL, the dashboard reads pre-computed rollups, storage shrinks automatically after a week, and data expires on schedule without anyone running a cron job.
 
+_Writes enter one hypertable, dashboard history comes from a maintained rollup, and policies manage storage over time._
+
+```mermaid
+flowchart LR
+  VEHICLES["Vehicle telemetry"] -->|INSERT| RAW["fleet_telemetry hypertable"]
+  RAW --> LIVE["Live fleet query"]
+  RAW --> REFRESH["Continuous aggregate policy"]
+  REFRESH --> ROLLUP["fleet_hourly rollup"]
+  ROLLUP --> HISTORY["Historical dashboard"]
+  RAW --> COLUMN["Columnstore policy after 7 days"]
+  COLUMN --> COLD["Compressed history"]
+  COLD --> RETAIN["Retention policy"]
+  RETAIN --> EXPIRE["Expired chunks removed"]
+  classDef query fill:#1c2f45,stroke:#58a6ff,color:#e6edf3
+  classDef lifecycle fill:#173b2a,stroke:#3fb950,color:#e6edf3
+  class LIVE,HISTORY query
+  class REFRESH,COLUMN,RETAIN lifecycle
+```
+
 ```sql
 SELECT
   (SELECT count(*) FROM timescaledb_information.chunks WHERE hypertable_name = 'fleet_telemetry') AS chunks,

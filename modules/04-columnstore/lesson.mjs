@@ -73,6 +73,22 @@ export default {
         'filter by most - here sensor_id - because the engine can then skip whole batches.\n\n' +
         'orderby controls the order of rows inside a batch. Time descending keeps similar values adjacent, ' +
         'which is what makes the encoding compact and recent-first scans cheap.',
+      diagram: {
+        title: 'segmentby chooses batches; orderby arranges rows inside them',
+        description: 'Filtering by sensor can skip unrelated batches, while sorting each chosen batch by time keeps nearby readings together.',
+        source: `flowchart LR
+  ROWS["Columnar chunk rows"] --> S1["Batch: sensor 1"]
+  ROWS --> S2["Batch: sensor 2"]
+  ROWS --> S3["Batch: sensor 3"]
+  S2 --> ORDER["Rows ordered by time descending"]
+  FILTER["WHERE sensor_id = 2"] --> S2
+  FILTER -. "skip" .-> S1
+  FILTER -. "skip" .-> S3
+  classDef chosen fill:#173b2a,stroke:#3fb950,color:#e6edf3
+  classDef skipped fill:#2b3440,stroke:#8b949e,color:#8b949e
+  class S2,ORDER chosen
+  class S1,S3 skipped`,
+      },
       sql: `ALTER TABLE readings SET (
   timescaledb.enable_columnstore = true,
   timescaledb.segmentby          = 'sensor_id',
