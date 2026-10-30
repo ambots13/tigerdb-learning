@@ -16,6 +16,7 @@
     "docs": "node src/docs.mjs",
     "test": "node --test",
     "audit:references": "node scripts/audit-hardcore-references.mjs",
+    "hardcore:inventory": "node src/hardcore-query-inventory.mjs",
     "verify": "node src/verify.mjs"
   },
   "dependencies": {

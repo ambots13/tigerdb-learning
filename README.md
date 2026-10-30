@@ -148,6 +148,8 @@ module 04 can show a genuine before/after.
 | `npm run lessons` | List modules |
 | `npm run lesson <id>` | Run a module (`-- --auto` for no pauses, `-- --from N` to resume) |
 | `npm run play` | Browser playground |
+| `npm run audit:references` | Check every Hardcore source URL and exact locator |
+| `npm run hardcore:inventory` | Emit a reproducible manifest of Hardcore SQL blocks (`--run` executes them) |
 | `npm run verify` | Run every step of every module and check it works (`-- --fresh` re-seeds first) |
 | `npm run docs` | Regenerate module READMEs from the lesson files |
 
