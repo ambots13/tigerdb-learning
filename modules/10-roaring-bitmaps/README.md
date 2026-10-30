@@ -2,7 +2,7 @@
 
 # Module 10 · Roaring bitmaps
 
-Store sets of ids as compressed bitmaps, then answer exact distinct, overlap and churn questions instantly.
+Store integer id sets as compressed bitmaps, then answer exact distinct, overlap, and churn questions from rollups.
 
 **Run it:** `npm run lesson 10` · ~12 min
 
@@ -15,29 +15,37 @@ Store sets of ids as compressed bitmaps, then answer exact distinct, overlap and
 
 ## 1. The problem: distinct counts do not roll up
 
-Sums and averages combine: add up the hourly numbers and you have the daily number. Distinct counts do not. To know how many unique users you had this week you must revisit every raw row, because the same user appears in many hours and you cannot tell from the counts alone.
+Suppose hour 1 contains users {1, 2} and hour 2 contains {2, 3}. Adding the two hourly distinct counts gives 4, but the day contains only 3 distinct users because user 2 appears twice. A count forgets who was counted, so distinct counts cannot be added safely.
 
-Storing the raw id list per bucket would let you combine them, but the storage is brutal. A roaring bitmap is that id list, compressed, with set operations built in.
+A roaring bitmap keeps the integer members of the set in compressed form. That lets PostgreSQL combine the sets first and count them afterward.
 
 ```sql
-SELECT 'a bitmap is a set of integers you can union, intersect and count' AS idea;
+SELECT
+  2 + 2 AS wrong_sum_of_hourly_counts,
+  cardinality(ARRAY[1, 2, 3]) AS correct_daily_count;
 ```
+
+> **Takeaway** Combine membership first, then count. A bitmap is useful because it preserves membership.
 
 ## 2. Enable the extension
 
-Roaring bitmaps come from the third-party pg_roaringbitmap PostgreSQL extension, not TimescaleDB Toolkit. The pinned lab image currently includes it, but every deployment must check availability.
+Roaring bitmaps come from the third-party pg_roaringbitmap PostgreSQL extension, not TimescaleDB Toolkit. Available means the server has the extension files; installed means this database can already use its functions. Check both before relying on it.
 
 ```sql
+SELECT name, default_version, installed_version
+FROM pg_available_extensions
+WHERE name = 'roaringbitmap';
+
 CREATE EXTENSION IF NOT EXISTS roaringbitmap;
 
 SELECT extname, extversion FROM pg_extension WHERE extname = 'roaringbitmap';
 ```
 
-> **Note** On Tiger Cloud and self-hosted installs, check availability with: SELECT * FROM pg_available_extensions WHERE name = 'roaringbitmap';
+> **Note** If the first query returns no row, this server image does not provide the extension. Do not continue by guessing function names; choose a supported deployment or another set representation.
 
 ## 3. Build one and take it apart
 
-rb_build turns an array of integers into a bitmap. The set operations are rb_and (intersection), rb_or (union), rb_xor (symmetric difference) and rb_andnot (difference). rb_cardinality counts members without expanding the set.
+Read A AND B as “in both sets,” A OR B as “in either set,” and A ANDNOT B as “in A but not B.” Before running the query, predict each array on paper. rb_build converts an integer array into a bitmap, rb_to_array makes the result visible again, and rb_cardinality counts its members.
 
 ```sql
 SELECT
@@ -51,7 +59,7 @@ SELECT
 
 ## 4. Why it is worth doing
 
-The same 100,000 integers, stored as a PostgreSQL array and as a roaring bitmap. The bitmap packs dense runs into a few bytes instead of four bytes per value.
+Compression depends on the values, not just their count. This compares the same 100,000 dense integers as a PostgreSQL array and a bitmap. Treat the measured ratio as a result for this dataset, not a promise for every workload.
 
 _This step runs a timed comparison in the CLI; see the runner output._
 
@@ -59,7 +67,7 @@ _This step runs a timed comparison in the CLI; see the runner output._
 
 ## 5. A dataset with real overlap
 
-Seven days of page visits. The active user population shifts from day to day - some users are present on both of any two days, some are not - which is what makes the retention questions later meaningful.
+Seven days of page visits. The active user population shifts from day to day - some users are present on both of any two days, some are not - which is what makes the retention questions later meaningful. You do not need to understand the data-generator arithmetic. Its contract is the important part: 4,000 active users per full day, with 3,000 returning and 1,000 changing.
 
 ```sql
 DROP MATERIALIZED VIEW IF EXISTS visits_hourly CASCADE;
@@ -86,7 +94,7 @@ SELECT count(*) AS visits, count(DISTINCT user_id) AS unique_users FROM visits;
 
 ## 6. Materialise the id set per hour
 
-rb_build_agg is an aggregate, so it can live inside a continuous aggregate. Each row of this rollup stores one hour and the exact set of users seen in it.
+A continuous aggregate is a stored time-based rollup maintained by TimescaleDB. rb_build_agg collects every user_id in an hour into one bitmap. WITH NO DATA creates the rollup definition without filling it; refresh_continuous_aggregate then materialises the existing hours.
 
 This is the key move: a distinct count cannot be combined later, but a set can.
 
@@ -121,7 +129,7 @@ _This step runs a timed comparison in the CLI; see the runner output._
 
 ## 8. Unique users per day, from the hourly sets
 
-Because sets combine, a daily figure is just a union of that day's hourly bitmaps. No raw data is touched, and the numbers are exact rather than the sum of hourly counts (which would double-count anyone active in two hours).
+Because sets combine, a daily figure is just a union of that day's hourly bitmaps. No raw data is touched, and the numbers are exact rather than the sum of hourly counts (which would double-count anyone active in two hours). Before running it, predict which will be larger: unique_users or naive_sum_of_hourly, and explain why.
 
 ```sql
 SELECT
@@ -138,10 +146,12 @@ ORDER BY day;
 
 ## 9. Retention and churn are set operations
 
-Once each day is a set, the interesting questions become one-liners:
-- returning = yesterday AND today
-- churned = yesterday minus today
-- new = today minus yesterday
+Call yesterday P (previous) and today C (current). Translate the business words before reading the SQL:
+- returning = P AND C
+- churned = P ANDNOT C
+- new = C ANDNOT P
+
+lag(users) places yesterday's bitmap in prev beside today's bitmap. Predict 3,000 returning, 1,000 churned, and 1,000 new users for each pair of full days.
 
 ```sql
 WITH daily AS (
@@ -167,21 +177,7 @@ ORDER BY day;
 
 > **Note** The numbers are identical every day because the sample data alternates between two overlapping user pools by design - 3000 shared, 1000 unique to each. Real data is messier; the arithmetic is the same.
 
-## 10. Do not confuse application bitmaps with sparse indexes
-
-The roaringbitmap values in this module are application-level exact sets. Hypercore sparse indexes are a different feature: configurable bloom and minmax metadata plus automatic firstlast metadata on orderby columns. They are used for batch pruning and are not roaring sets you can query.
-
-```sql
-SELECT
-  extversion AS timescaledb_version,
-  'bloom, minmax, automatic firstlast' AS sparse_index_metadata,
-  current_setting('timescaledb.auto_sparse_indexes') AS auto_sparse_indexes
-FROM pg_extension WHERE extname = 'timescaledb';
-```
-
-> **Note** Do not probe undocumented sparse-index names with ALTER TABLE. Check the versioned Hypercore indexing reference for supported metadata types.
-
-## 11. Clean up
+## 10. Clean up
 
 Drop what this module created. The extension is left installed - it costs nothing idle.
 
@@ -193,14 +189,20 @@ DROP TABLE IF EXISTS visits CASCADE;
 
 ## Challenge
 
-Before the cleanup step runs you had visits_hourly. Rebuild the idea in one query: using rb_build_agg over the raw readings table, return how many distinct sensor_ids reported in the last 24 hours, in a column named sensors.
+Build one bitmap for sensor_ids that reported in the last 24 hours. Return its exact member count as sensors and its sorted members as sensor_ids. Use a CTE so the bitmap is built only once.
 
-_Hint: rb_cardinality(rb_build_agg(sensor_id)) with a time filter on readings._
+_Hint: First build one bitmap in a CTE. Then apply the two accessor functions used in step 3._
 
 <details><summary>Solution</summary>
 
 ```sql
-SELECT rb_cardinality(rb_build_agg(sensor_id)) AS sensors FROM readings WHERE time >= now() - INTERVAL '24 hours';
+WITH active AS (
+  SELECT rb_build_agg(sensor_id) AS ids
+  FROM readings
+  WHERE time >= now() - INTERVAL '24 hours'
+)
+SELECT rb_cardinality(ids) AS sensors, rb_to_array(ids) AS sensor_ids
+FROM active;
 ```
 
 </details>

@@ -46,7 +46,7 @@ export function normalizeActivity(activity, sourceIndex) {
     evidence.length ? `Complete the requested work and show: ${evidence.join('; ')}.` : 'Complete each step and explain what you observed.'
   );
   const sourceRefs = (activity.sourceIds ?? []).map((sourceId) => sourceIndex.get(sourceId)).filter(Boolean);
-  const steps = instructions.map((instruction, index) => normalizeStep(instruction, index, activity));
+  const steps = activity.steps ?? instructions.map((instruction, index) => normalizeStep(instruction, index, activity));
   const typical = Math.max(15, Math.round((steps.length * 4 + (sql ? 5 : 8))));
 
   return {
@@ -119,7 +119,7 @@ export function normalizeDeepDive(deepDive) {
   const phases = deepDive.phases.map((phase) => ({
     ...phase,
     activities: phase.activities.map((activity) => normalizeActivity(activity, sourceIndex)),
-    minutes: phase.activities.reduce((total, activity) => total + (activity.estimatedMinutes?.typical ?? 15), 0),
+    minutes: phase.minutes ?? phase.activities.reduce((total, activity) => total + (activity.estimatedMinutes?.typical ?? 15), 0),
   }));
   return {
     ...deepDive,

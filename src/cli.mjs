@@ -56,6 +56,14 @@ async function seedWarning() {
     );
     return false;
   }
+  const coverage = await query('SELECT max(time) AS latest FROM readings');
+  const latest = coverage.rows[0]?.latest;
+  if (!latest || Date.now() - new Date(latest).getTime() > 24 * 60 * 60 * 1000) {
+    console.log(
+      `\n  ${c.yellow('!')} Sample data is older than 24 hours. Run ${c.bold('npm run seed')} so time-relative exercises return data.\n`,
+    );
+    return false;
+  }
   return true;
 }
 

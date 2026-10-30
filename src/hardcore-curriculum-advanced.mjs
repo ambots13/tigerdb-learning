@@ -18,6 +18,65 @@ const phase = (id, title, minutes, overview, activities) => ({
   activities,
 });
 
+const bitmapVocabulary = [
+  {
+    term: 'set',
+    simpleMeaning: 'A collection in which each member appears once.',
+    technicalMeaning: 'An unordered collection of distinct values.',
+    example: '{1, 2} combined with {2, 3} contains the members {1, 2, 3}.',
+  },
+  {
+    term: 'cardinality',
+    simpleMeaning: 'The number of members in a set.',
+    technicalMeaning: 'The count of distinct elements in a set or bitmap.',
+    example: 'The cardinality of {1, 2, 3} is 3.',
+  },
+];
+
+const microstep = (action, reason, expectedResult, explanation, troubleshooting) => ({
+  action,
+  reason,
+  expectedResult,
+  explanation,
+  troubleshooting,
+});
+
+const bitmapGuidance = ({
+  predictionQuestion,
+  predictionChoices,
+  steps,
+  hints,
+  answer,
+  explanation,
+  template,
+  example,
+  vocabulary = [],
+  prerequisites = ['Complete standard module 10', 'Know SELECT, WHERE, GROUP BY, and common table expressions'],
+  commonMistakes,
+}) => ({
+  prerequisites,
+  vocabulary: [...bitmapVocabulary, ...vocabulary],
+  beforeYouRun: {
+    predictionQuestion,
+    predictionChoices,
+    explanation: 'Commit to an answer before revealing the result; correcting a prediction is stronger practice than only reading.',
+  },
+  steps,
+  hints: hints.map((text, index) => ({ level: index + 1, text })),
+  workedAnswer: {
+    answer,
+    explanation,
+    acceptableVariations: ['Equivalent SQL or wording is acceptable when it proves the same claim.'],
+    template,
+    example,
+  },
+  commonMistakes: commonMistakes ?? [{
+    symptom: 'You can repeat the answer but cannot explain why it is true.',
+    cause: 'The reference answer was read before making and testing a prediction.',
+    fix: 'Hide the answer, work through the smallest concrete set example, then explain the result in your own words.',
+  }],
+});
+
 const standardMinutes = [15, 25, 20, 25, 20, 20, 25, 15, 15];
 
 export const advancedDeepDives = {
@@ -233,6 +292,42 @@ ORDER BY sensor_id;`,
 FROM pg_available_extensions a
 LEFT JOIN pg_extension e ON e.extname = a.name
 WHERE a.name = 'roaringbitmap';`,
+              ...bitmapGuidance({
+                predictionQuestion: 'If roaringbitmap is available but not installed, which version column should be empty?',
+                predictionChoices: ['default_version', 'installed_version', 'Both columns'],
+                steps: [
+                  microstep(
+                    'Run the catalog query before installing anything.',
+                    'This separates server availability from installation in the current database.',
+                    'One row appears; default_version has a value and installed_version may be empty.',
+                    'pg_available_extensions describes installable packages; pg_extension contains installed extensions.',
+                    'If no row appears, the server image does not provide roaringbitmap. Stop rather than trying bitmap functions.',
+                  ),
+                  microstep(
+                    'Write one sentence naming who provides the extension.',
+                    'Operational ownership matters for upgrades, support, and hosted-service availability.',
+                    'Your sentence says pg_roaringbitmap is third-party and not TimescaleDB Toolkit.',
+                    'The provenance column is a reminder, not proof; verify it against the linked upstream project.',
+                    'If the providers are unclear, compare the upstream repository with the installed timescaledb_toolkit extension name.',
+                  ),
+                ],
+                hints: [
+                  'Compare what pg_available_extensions and pg_extension are designed to report.',
+                  'The LEFT JOIN keeps an available extension even when no installed row exists.',
+                  'Look for the column sourced from e.extversion.',
+                  'installed_version is empty when available but not installed; pg_roaringbitmap is third-party.',
+                ],
+                answer: 'default_version proves the package is available; installed_version proves it is installed in this database. pg_roaringbitmap is a third-party extension, not TimescaleDB Toolkit.',
+                explanation: 'Availability is a server-level packaging fact, while installation is database-specific.',
+                template: '[name] is available at [default_version] and installed at [installed_version or not installed]. Its provider is [provider].',
+                example: 'roaringbitmap is available at 1.2 and installed at 1.2. It is provided by the third-party pg_roaringbitmap project.',
+                vocabulary: [{
+                  term: 'extension',
+                  simpleMeaning: 'An add-on that gives PostgreSQL more features.',
+                  technicalMeaning: 'A versioned package of database objects managed with CREATE EXTENSION.',
+                  example: 'CREATE EXTENSION roaringbitmap installs bitmap types and functions in one database.',
+                }],
+              }),
             }),
         ]),
       phase('10-p2', 'Deep theory: containers and exact algebra', standardMinutes[1],
@@ -242,7 +337,38 @@ WHERE a.name = 'roaringbitmap';`,
               'Explain how dense runs and clustered values can compress well while sparse scattered IDs may not.',
               'Contrast exact membership with approximate cardinality sketches that cannot enumerate members.',
             ], ['A comparison covering exactness, membership, mergeability, and distribution sensitivity.'],
-            ['10-src-repo', '10-src-pgxn']),
+            ['10-src-repo', '10-src-pgxn'], {
+              ...bitmapGuidance({
+                predictionQuestion: 'Which input should usually compress better: 1,000 consecutive integers or 1,000 random integers spread across a huge range?',
+                predictionChoices: ['Consecutive integers', 'Random scattered integers', 'They must be identical'],
+                steps: [
+                  microstep(
+                    'Draw two ten-value examples: one consecutive and one widely scattered.',
+                    'A visible example makes “density” concrete before introducing storage internals.',
+                    'You have two sets with the same cardinality but different spacing.',
+                    'Equal cardinality does not imply equal encoded size.',
+                    'If the examples still look alike, use {1..10} and {1, 1001, 2001, ...}.',
+                  ),
+                  microstep(
+                    'Complete a four-column comparison: exactness, membership lookup, mergeability, and distribution sensitivity.',
+                    'This prevents confusing a bitmap with an approximate distinct-count sketch.',
+                    'The bitmap is exact and enumerable; a cardinality sketch estimates a count and does not retain enumerable membership.',
+                    'Both forms can merge, but they preserve different information.',
+                    'If “exact” and “approximate” feel abstract, ask whether the structure can return the actual member IDs.',
+                  ),
+                ],
+                hints: [
+                  'Start with spacing, not the number of values.',
+                  'Ask whether each structure can answer “is ID 42 present?” exactly.',
+                  'A bitmap retains members; a sketch is designed primarily to estimate how many distinct values occurred.',
+                  'Dense or clustered integers often compress better; roaring bitmaps remain exact, while cardinality sketches trade exact membership for compact estimates.',
+                ],
+                answer: 'Consecutive or clustered integers usually compress better than equally numerous scattered integers. Roaring bitmaps preserve exact membership and support exact set operations; cardinality sketches merge compact states to estimate counts but cannot enumerate exact members.',
+                explanation: 'The comparison separates storage behavior from accuracy and query capability.',
+                template: 'For [distribution], I expect [better/worse] compression because [spacing reason]. A bitmap is [exactness/membership]; a sketch is [exactness/membership].',
+                example: 'For 1..1000, I expect better compression because the IDs form a dense run. A bitmap is exact and enumerable; a HyperLogLog-style sketch estimates only cardinality.',
+              }),
+            }),
         ]),
       phase('10-p3', 'Guided analysis: retention as set algebra', standardMinutes[2],
         'Translate business language into exact set operators before touching SQL.', [
@@ -251,7 +377,38 @@ WHERE a.name = 'roaringbitmap';`,
               'Define returning as previous AND current and churned as previous AND NOT current.',
               'Define new as current AND NOT previous and reconcile all partitions against union cardinality.',
             ], ['Four equations and one cardinality reconciliation identity.'],
-            ['10-src-pgxn']),
+            ['10-src-pgxn'], {
+              ...bitmapGuidance({
+                predictionQuestion: 'If previous is {1, 2, 3} and current is {2, 3, 4}, how many users are returning?',
+                predictionChoices: ['2', '3', '4'],
+                steps: [
+                  microstep(
+                    'Compute returning, churned, and new members for the two sample sets by hand.',
+                    'Small sets expose the direction of each difference operation.',
+                    'returning={2,3}, churned={1}, and new={4}.',
+                    'Previous minus current is churn; current minus previous is new.',
+                    'If the two differences are reversed, say each phrase aloud as “in the first set but not the second.”',
+                  ),
+                  microstep(
+                    'Check two identities: previous=returning+churned and current=returning+new.',
+                    'The identities catch swapped operands and double-counting.',
+                    'Both sides equal 3 for the sample.',
+                    'The partitions are disjoint, so their cardinalities can be added.',
+                    'If an identity fails, list the members of each partition and look for a duplicate or missing ID.',
+                  ),
+                ],
+                hints: [
+                  'Returning means present on both days.',
+                  'AND is intersection; ANDNOT keeps only members from its left operand.',
+                  'Use P∩C, P\\C, and C\\P.',
+                  'returning=P∩C; churned=P\\C; new=C\\P; |P∪C|=|returning|+|churned|+|new|.',
+                ],
+                answer: 'For previous P and current C: returning=P AND C, churned=P ANDNOT C, new=C ANDNOT P. Also |P|=|returning|+|churned|, |C|=|returning|+|new|, and |P OR C| is the sum of all three disjoint groups.',
+                explanation: 'Writing the set equations before SQL makes operand direction reviewable.',
+                template: 'returning=[equation], churned=[equation], new=[equation]. I checked them with [identity].',
+                example: 'For P={1,2,3}, C={2,3,4}: returning={2,3}, churned={1}, new={4}; the union cardinality is 2+1+1=4.',
+              }),
+            }),
         ]),
       phase('10-p4', 'Controlled experiments: density and baseline', standardMinutes[3],
         'Use seeded integer sensor IDs to establish correct answers and inspect extension APIs safely.', [
@@ -268,6 +425,36 @@ FROM readings
 WHERE time >= now() - INTERVAL '4 days'
 GROUP BY 1
 ORDER BY 1;`,
+              ...bitmapGuidance({
+                predictionQuestion: 'For the seeded fleet, how many sensor IDs should a complete day normally contain?',
+                predictionChoices: ['12', 'One per reading', 'It cannot be checked'],
+                steps: [
+                  microstep(
+                    'Run the array baseline and identify any partial boundary days.',
+                    'The first and last UTC days may cover only part of a day even though their member sets are still complete.',
+                    'Each returned row has day, an ordered sensor_ids array, and cardinality 12.',
+                    'DISTINCT removes repeated readings; ORDER BY inside array_agg makes visual comparison reliable.',
+                    'If readings is missing, run npm run seed. If cardinality differs, inspect the actual array instead of assuming the bitmap is wrong.',
+                  ),
+                  microstep(
+                    'Save two adjacent arrays as the correctness oracle for later set operations.',
+                    'An implementation should be checked against a simpler representation.',
+                    'The two arrays visibly contain the same 12 seeded sensor IDs.',
+                    'The oracle establishes exact members, not merely an expected count.',
+                    'If arrays are truncated in the UI, run a narrower two-day query or inspect one day at a time.',
+                  ),
+                ],
+                hints: [
+                  'The sensors table describes the fleet size.',
+                  'Count distinct IDs, not reading rows.',
+                  'array_agg(DISTINCT ... ORDER BY ...) gives a readable exact set.',
+                  'A normally seeded day contains the ordered IDs 1 through 12 and cardinality 12.',
+                ],
+                answer: 'The baseline should show one row per UTC day, with sensor_ids {1,...,12} and cardinality 12 for the seeded fleet. Save adjacent rows as the oracle; later bitmap results must match both their count and members.',
+                explanation: 'A standard PostgreSQL array is slower and larger here, but it is transparent enough to validate the unfamiliar bitmap representation.',
+                template: 'For [day], the oracle members are [array] with cardinality [count]. The adjacent day [matches/differs] by [members].',
+                example: 'For 2026-10-29 UTC, the oracle members are {1,...,12}, cardinality 12; the adjacent day has the same members.',
+              }),
             }),
           activity('10-a05', 'experiment', 'measured', 'Inspect the installed bitmap API',
             'Avoid assuming function names or signatures across extension versions.', [
@@ -281,6 +468,42 @@ JOIN pg_depend d ON d.objid = p.oid AND d.classid = 'pg_proc'::regclass
 JOIN pg_extension e ON e.oid = d.refobjid
 WHERE e.extname = 'roaringbitmap'
 ORDER BY p.oid::regprocedure::text;`,
+              ...bitmapGuidance({
+                predictionQuestion: 'Why inspect function signatures instead of copying names from an article?',
+                predictionChoices: ['Installed versions can expose different APIs', 'Function names never change', 'Catalogs only show table names'],
+                steps: [
+                  microstep(
+                    'Run the catalog query and find signatures beginning with rb_build, rb_or, rb_and, and rb_cardinality.',
+                    'The installed catalog is the authority for what this database can execute.',
+                    'The output lists version-specific function names with argument types.',
+                    'regprocedure includes argument types, which distinguishes overloaded functions.',
+                    'If no rows appear, confirm roaringbitmap is installed in this database using pg_extension.',
+                  ),
+                  microstep(
+                    'Classify the signatures as builders, aggregate builders, set operators, converters, or counters.',
+                    'Classification turns a long catalog list into a usable API map.',
+                    'You have at least one signature in each category that the installed version supports.',
+                    'Do not infer a missing function from a similarly named function in another extension.',
+                    'If a category is unclear, inspect only signatures beginning with rb_ and compare them with the upstream API reference.',
+                  ),
+                ],
+                hints: [
+                  'pg_proc stores functions; pg_depend connects extension-owned objects to pg_extension.',
+                  'regprocedure prints the function name and its argument types.',
+                  'Look for _agg suffixes for aggregates and rb_to_array for conversion.',
+                  'Record the installed signatures rather than assuming the course examples apply to every version.',
+                ],
+                answer: 'Use the extension-owned pg_proc rows as the version-specific inventory. Group rb_build/rb_build_agg as builders, rb_or/rb_and/rb_andnot as set operators, rb_to_array as conversion, and rb_cardinality as counting when those signatures are present.',
+                explanation: 'This method remains valid even if a future extension version changes or overloads its API.',
+                template: '[category]: [installed signatures]. I verified version [extversion] rather than assuming [external example].',
+                example: 'Set operators: rb_and(roaringbitmap,roaringbitmap), rb_or(...), and rb_andnot(...), verified on installed extension 1.2.',
+                vocabulary: [{
+                  term: 'function signature',
+                  simpleMeaning: 'A function name plus the kinds of inputs it accepts.',
+                  technicalMeaning: 'The identity of an overloaded PostgreSQL routine, including its argument types.',
+                  example: 'rb_and(roaringbitmap,roaringbitmap)',
+                }],
+              }),
             }),
         ]),
       phase('10-p5', 'Failure/debug lab: lifecycle mismatch', standardMinutes[4],
@@ -291,7 +514,51 @@ ORDER BY p.oid::regprocedure::text;`,
               'Show why deleting raw rows before all affected bitmap buckets are refreshed makes later repair impossible.',
               'Require extension availability and upgrade testing in backup/restore and failover runbooks.',
             ], ['A lifecycle diagram with a safe ordering and one recovery limitation.'],
-            ['10-src-pg-extensions', '10-src-repo']),
+            ['10-src-pg-extensions', '10-src-repo'], {
+              ...bitmapGuidance({
+                predictionQuestion: 'Can a deleted raw event be reconstructed from a bitmap that only retained its user ID?',
+                predictionChoices: ['No', 'Yes, including its timestamp', 'Always after VACUUM'],
+                steps: [
+                  microstep(
+                    'Draw one left-to-right timeline with raw retention, the last refresh, and bitmap history.',
+                    'A shared time axis makes unsafe ordering visible.',
+                    'The final refresh of a bucket appears before raw rows for that bucket are deleted.',
+                    'A bitmap preserves membership, not every source event or timestamp.',
+                    'If the ordering is ambiguous, mark one bucket and label its last possible late arrival, final refresh, and deletion.',
+                  ),
+                  microstep(
+                    'Describe a late correction that arrives after its raw bucket was deleted.',
+                    'A failure case tests whether the design is actually repairable.',
+                    'Your explanation says the aggregate cannot be rebuilt exactly without another durable source.',
+                    'Invalidation can signal that a bucket changed, but it cannot recreate deleted input rows.',
+                    'If recovery still sounds possible, name the exact system that retains the missing source events.',
+                  ),
+                  microstep(
+                    'Add extension restore and upgrade checks to the operating sequence.',
+                    'Stored roaringbitmap values require the extension on restored or promoted servers.',
+                    'The runbook checks extension availability/version before restore, replica promotion, and upgrade.',
+                    'Data durability includes the ability to decode and query extension-defined values.',
+                    'If the check is vague, write the exact pg_available_extensions and pg_extension queries from activity 1.',
+                  ),
+                ],
+                hints: [
+                  'Start with one aggregate bucket, not the entire retention policy.',
+                  'Ask what information remains after raw rows are dropped.',
+                  'Safe order: accept late data, perform the final refresh, verify it, then delete raw rows.',
+                  'After deletion, repair requires another durable raw source; the bitmap cannot reconstruct event timestamps or omitted members.',
+                ],
+                answer: 'For each bucket, keep raw rows through the accepted lateness window, run and verify a final refresh, then allow retention to delete them. If a correction arrives after deletion, the bitmap cannot be repaired unless another durable event source can replay the bucket. Restore and failover procedures must verify the same extension is available.',
+                explanation: 'The answer names both safe ordering and the hard recovery limit.',
+                template: '[bucket] remains raw until [condition]. Then [refresh/verification] happens before [deletion]. After deletion, recovery is limited to [source].',
+                example: 'A Monday bucket remains raw through the seven-day lateness SLA; its final refresh is verified before deletion. Later repair requires replay from archived events.',
+                vocabulary: [{
+                  term: 'refresh horizon',
+                  simpleMeaning: 'How far back the rollup is still allowed to recompute.',
+                  technicalMeaning: 'The time range covered by manual or policy-driven aggregate refreshes.',
+                  example: 'A seven-day refresh horizon cannot repair an eight-day-old bucket automatically.',
+                }],
+              }),
+            }),
         ]),
       phase('10-p6', 'Independent exercise: exact daily overlap', standardMinutes[5],
         'Solve the set problem first with standard PostgreSQL as a correctness oracle.', [
@@ -320,6 +587,56 @@ SELECT day,
 FROM pairs
 WHERE prev_ids IS NOT NULL
 ORDER BY day;`,
+              ...bitmapGuidance({
+                predictionQuestion: 'If both adjacent seeded days contain sensors 1 through 12, what returning count should the query produce?',
+                predictionChoices: ['12', '24', '0'],
+                steps: [
+                  microstep(
+                    'Complete daily so it returns one distinct sensor array per UTC day.',
+                    'The array is a readable correctness oracle before bitmap optimization.',
+                    'daily has one row per day and one ids array.',
+                    'DISTINCT prevents repeated readings from duplicating members.',
+                    'If there are many duplicates, check that DISTINCT is inside array_agg rather than applied to complete rows.',
+                  ),
+                  microstep(
+                    'Pair each day with the preceding array using lag, then intersect the two unnested arrays.',
+                    'This directly expresses adjacent-day returning membership with standard PostgreSQL.',
+                    'Each non-first day returns a count matching the number of shared IDs.',
+                    'INTERSECT removes duplicates and keeps values present in both inputs.',
+                    'If the first row causes a NULL issue, filter rows where prev_ids IS NOT NULL.',
+                  ),
+                  microstep(
+                    'Explain with {1,2} and {2,3} why adding daily distinct counts is wrong.',
+                    'A tiny counterexample is a proof of non-additivity.',
+                    'You state that 2+2=4 double-counts member 2 while the union contains 3 members.',
+                    'Daily counts discard the identity needed to detect overlap.',
+                    'If the explanation uses only the seeded result, replace it with the explicit two-set counterexample.',
+                  ),
+                ],
+                hints: [
+                  'Build array_agg(DISTINCT sensor_id) in daily.',
+                  'lag(ids) OVER (ORDER BY day) supplies the previous day.',
+                  'SELECT unnest(ids) INTERSECT SELECT unnest(prev_ids) returns shared IDs.',
+                  'Count the INTERSECT rows; then filter out the first day, which has no predecessor.',
+                ],
+                answer: `WITH daily AS (
+  SELECT date_trunc('day', time) AS day, array_agg(DISTINCT sensor_id) AS ids
+  FROM readings
+  WHERE time >= now() - INTERVAL '4 days'
+  GROUP BY 1
+), pairs AS (
+  SELECT day, ids, lag(ids) OVER (ORDER BY day) AS prev_ids FROM daily
+)
+SELECT day, (SELECT count(*) FROM (
+  SELECT unnest(ids) INTERSECT SELECT unnest(prev_ids)
+) shared) AS returning
+FROM pairs
+WHERE prev_ids IS NOT NULL
+ORDER BY day;`,
+                explanation: 'The query is intentionally standard PostgreSQL so it can validate a later bitmap implementation.',
+                template: 'My oracle returns [count] for [day pair]. Summing daily counts fails because [explicit overlapping-set example].',
+                example: 'The seeded adjacent days return 12. For {1,2} and {2,3}, adding 2+2 gives 4 but the union has only 3 members.',
+              }),
             }),
         ]),
       phase('10-p7', 'Production scenario: audience rollups', standardMinutes[6],
@@ -330,7 +647,51 @@ ORDER BY day;`,
               'Define integer ID assignment, deletion semantics, rebuild source, and maximum supported union range.',
               'Benchmark dense and sparse real cohorts rather than extrapolating from consecutive integers.',
             ], ['A design covering bucket grain, ID domain, erasure, rebuild, and benchmark cases.'],
-            ['10-src-repo', '10-src-pgxn', '10-src-pg-extensions']),
+            ['10-src-repo', '10-src-pgxn', '10-src-pg-extensions'], {
+              ...bitmapGuidance({
+                predictionQuestion: 'What should determine the smallest bitmap bucket: convenience or the smallest supported query window?',
+                predictionChoices: ['The smallest supported query window', 'A universal one-day rule', 'The extension version number'],
+                steps: [
+                  microstep(
+                    'Write the smallest supported time window and choose an aligned bucket no larger than it.',
+                    'A rollup cannot answer arbitrary sub-bucket membership questions it never stored.',
+                    'The bucket choice is tied to a stated query requirement.',
+                    'Smaller buckets improve time precision but create more states to store and union.',
+                    'If no smallest window is known, stop and obtain the product requirement instead of guessing a bucket.',
+                  ),
+                  microstep(
+                    'Document ID mapping, erasure behavior, rebuild source, and maximum union range.',
+                    'These ownership decisions determine whether exact membership remains correct and operable.',
+                    'Each of the four items has an owner and a testable rule.',
+                    'A stable integer mapping must not silently reuse an ID for a different person.',
+                    'If deletion is described only as dropping raw rows, also state how the member is removed from existing bitmap history.',
+                  ),
+                  microstep(
+                    'Benchmark one dense and one sparse cohort from representative data.',
+                    'The consecutive-integer demo cannot predict production compression.',
+                    'The record includes input cardinality, ID span, array bytes, bitmap bytes, and union latency for both cases.',
+                    'Density is approximately cardinality divided by the represented ID span.',
+                    'If real data is unavailable, label synthetic results as provisional and do not make a production approval.',
+                  ),
+                ],
+                hints: [
+                  'Start from the narrowest time question users are allowed to ask.',
+                  'List who owns stable integer assignment and whether IDs can ever be reused.',
+                  'Define how historical bitmaps change when a person invokes erasure.',
+                  'Approve only after representative dense and sparse measurements plus a tested rebuild path.',
+                ],
+                answer: 'Choose an aligned bucket at or below the smallest supported query window, then cap the maximum union range from measured latency. Use a stable non-reused integer mapping, define historical erasure, retain a durable rebuild source, and benchmark dense and sparse real cohorts before approval.',
+                explanation: 'A technically valid bitmap is not yet a production-safe audience system.',
+                template: 'Bucket=[grain] because minimum query=[window]. IDs=[mapping/owner]. Erasure=[procedure]. Rebuild=[source]. Max range=[limit/evidence].',
+                example: 'Use hourly buckets for one-hour-or-larger queries, immutable surrogate integer IDs, a queued aggregate rebuild for erasure, archived events for replay, and a 90-day union cap justified by benchmarks.',
+                vocabulary: [{
+                  term: 'bucket grain',
+                  simpleMeaning: 'The amount of time represented by one rollup row.',
+                  technicalMeaning: 'The aligned interval used to group source events into aggregate states.',
+                  example: 'One-hour grain creates one bitmap per hour.',
+                }],
+              }),
+            }),
         ]),
       phase('10-p8', 'Closed-book assessment', standardMinutes[7],
         'Test exactness, provenance, and lifecycle understanding.', [
@@ -340,7 +701,46 @@ ORDER BY day;`,
               'Name the extension provenance and explain why Toolkit documentation is not its API authority.',
               'State the raw-retention precondition for repairable bitmap aggregates.',
             ], ['Answers include exact, integer mapping, third-party, and refresh-before-delete.'],
-            ['10-src-repo', '10-src-pgxn', '10-src-pg-extensions']),
+            ['10-src-repo', '10-src-pgxn', '10-src-pg-extensions'], {
+              ...bitmapGuidance({
+                predictionQuestion: 'Which statement is true?',
+                predictionChoices: ['A roaring bitmap stores exact integer membership', 'It directly stores random UUIDs', 'It belongs to TimescaleDB Toolkit'],
+                steps: [
+                  microstep(
+                    'Answer the exactness and input-domain questions without opening the lesson.',
+                    'Closed-book retrieval reveals what can actually be recalled.',
+                    'You state exact membership and the need for a stable integer mapping for non-integer identities.',
+                    'A bitmap can return its members; an approximate sketch cannot.',
+                    'If unsure, rebuild the {1,2}/{2,3} example before viewing the answer.',
+                  ),
+                  microstep(
+                    'Name the provider and the authoritative API sources.',
+                    'Using the wrong project documentation leads to invalid function assumptions.',
+                    'You identify pg_roaringbitmap as third-party and use its upstream or PGXN docs plus installed catalogs.',
+                    'TimescaleDB Toolkit documentation does not define this extension API.',
+                    'If the answer says “Timescale,” revisit the installed extension names in pg_extension.',
+                  ),
+                  microstep(
+                    'State the refresh-before-delete rule in one sentence.',
+                    'The lifecycle rule is the minimum safe operational takeaway.',
+                    'Your sentence places a verified final refresh before raw retention deletes a bucket.',
+                    'After source deletion, exact repair needs another durable source.',
+                    'If the sentence omits late arrivals, add the accepted lateness window explicitly.',
+                  ),
+                ],
+                hints: [
+                  'Ask whether rb_to_array can enumerate the result.',
+                  'UUIDs need a stable, collision-free integer surrogate; do not hash and hope.',
+                  'The extension installed is named roaringbitmap, not timescaledb_toolkit.',
+                  'Exact; stable integer mapping; third-party pg_roaringbitmap; final refresh and verification before source deletion.',
+                ],
+                answer: 'Roaring membership is exact. Random UUIDs are not direct bitmap members and require a stable, collision-free integer mapping. pg_roaringbitmap is third-party, so its upstream/PGXN docs and installed catalogs define the API. Raw rows must survive accepted lateness and a verified final refresh; later repair requires another durable source.',
+                explanation: 'These four facts are the minimum readiness gate for safe use.',
+                template: 'Exactness=[]. Input mapping=[]. Provider/API authority=[]. Retention precondition=[].',
+                example: 'Exactness=exact membership. Input mapping=immutable surrogate integer. Provider=third-party pg_roaringbitmap. Retention=refresh and verify before deleting raw rows.',
+                prerequisites: ['Complete activities 1 through 8', 'Attempt this activity without opening their worked answers'],
+              }),
+            }),
         ]),
       phase('10-p9', 'Review and transfer', standardMinutes[8],
         'Package the method into a reusable adoption checklist.', [
@@ -349,7 +749,39 @@ ORDER BY day;`,
               'Score availability, upgrade path, replica support, backup restore, observed density, and query savings.',
               'Reject adoption if exact member sets are unnecessary or lifecycle ownership is undefined.',
             ], ['A signed decision record with explicit reject conditions.'],
-            ['10-src-repo', '10-src-pg-extensions']),
+            ['10-src-repo', '10-src-pg-extensions'], {
+              ...bitmapGuidance({
+                predictionQuestion: 'Should you adopt roaringbitmap when the product only needs an approximate distinct count?',
+                predictionChoices: ['Usually no', 'Always yes', 'Only because the lab image includes it'],
+                steps: [
+                  microstep(
+                    'Score availability, upgrade/replica support, backup restore, observed density, and measured query savings.',
+                    'Adoption should depend on evidence across operations and workload fit.',
+                    'Each category has evidence, an owner, and pass/fail status.',
+                    'Extension availability in a development image does not prove availability in production or replicas.',
+                    'If a score has no evidence, mark it unknown rather than passing it.',
+                  ),
+                  microstep(
+                    'Write explicit rejection conditions before making the decision.',
+                    'Precommitted reject rules reduce pressure to justify an attractive benchmark.',
+                    'The record rejects when exact membership is unnecessary, integer mapping is unsafe, lifecycle ownership is missing, or operational support is unproven.',
+                    'A simpler count-distinct sketch or standard table may be the better design.',
+                    'If every result leads to approval, the criteria are not decision criteria; add measurable failure thresholds.',
+                  ),
+                ],
+                hints: [
+                  'Separate “can run” from “should adopt.”',
+                  'Require restore and replica evidence, not only a successful CREATE EXTENSION.',
+                  'Compare against the simplest design that meets the accuracy requirement.',
+                  'Reject when exact member sets are unnecessary or mapping, erasure, rebuild, and refresh-before-delete ownership are undefined.',
+                ],
+                answer: 'Approve only when production and replica availability, upgrades, restore, representative compression, and query savings all pass documented tests, and when stable mapping plus erasure/rebuild ownership exist. Reject when approximate counts are sufficient or any lifecycle responsibility is undefined.',
+                explanation: 'The decision balances query value against a third-party extension and retained-membership lifecycle.',
+                template: 'Decision=[approve/reject]. Evidence=[availability, upgrade, replica, restore, density, savings]. Owners=[mapping, erasure, rebuild]. Reject triggers=[].',
+                example: 'Reject: the workload needs only approximate counts, the hosted service does not offer the extension, and no owner exists for historical erasure.',
+                prerequisites: ['Complete activities 1 through 9', 'Have representative deployment and workload evidence, or label the decision provisional'],
+              }),
+            }),
         ]),
     ],
   },
