@@ -71,6 +71,9 @@ function lessonProgress(lesson) {
   if (!progress.multipleChoice || typeof progress.multipleChoice !== 'object' || Array.isArray(progress.multipleChoice)) {
     progress.multipleChoice = {};
   }
+  if (!progress.activityChecks || typeof progress.activityChecks !== 'object' || Array.isArray(progress.activityChecks)) {
+    progress.activityChecks = {};
+  }
   return progress;
 }
 
@@ -507,53 +510,100 @@ function renderDrill(lesson, drill, index) {
   return card;
 }
 
-function renderActivityMultipleChoice(lesson, activity) {
-  const check = activity.multipleChoice;
-  const saved = lessonProgress(lesson).multipleChoice[activity.id];
-  const card = el('section', 'activity-check');
-  card.append(el('div', 'eyebrow', 'Quick check'));
-  card.append(el('h5', null, check.question));
-  const options = el('div', 'checkpoint-options');
-  const feedback = el('p', 'checkpoint-feedback');
-  feedback.hidden = saved === undefined;
+function activityChecksComplete(progress, activity) {
+  const saved = progress.activityChecks[activity.id] ?? {};
+  return activity.checks.every((check) => saved[check.id] === check.answer);
+}
 
-  check.options.forEach((option, optionIndex) => {
-    const button = el('button', 'answer-option', option);
-    button.type = 'button';
-    button.dataset.index = optionIndex;
-    button.disabled = saved === check.answer;
-    button.classList.toggle('correct', saved === check.answer && optionIndex === check.answer);
-    button.classList.toggle('incorrect', saved !== undefined && saved !== check.answer && optionIndex === saved);
-    button.addEventListener('click', () => {
-      const correct = optionIndex === check.answer;
-      for (const candidate of options.querySelectorAll('button')) {
-        candidate.classList.remove('correct', 'incorrect');
-        if (correct) {
-          candidate.disabled = true;
-          candidate.classList.toggle('correct', Number(candidate.dataset.index) === check.answer);
+function renderActivityChecks(lesson, activity) {
+  const progress = lessonProgress(lesson);
+  if (!progress.activityChecks[activity.id] || typeof progress.activityChecks[activity.id] !== 'object') {
+    progress.activityChecks[activity.id] = {};
+  }
+  const savedChecks = progress.activityChecks[activity.id];
+  const legacyAnswer = progress.multipleChoice[activity.id];
+  let progressChanged = false;
+  if (
+    activity.migrateLegacyMultipleChoice
+    && legacyAnswer !== undefined
+    && savedChecks[activity.checks[0].id] === undefined
+  ) {
+    savedChecks[activity.checks[0].id] = legacyAnswer;
+    progressChanged = true;
+  }
+
+  const group = el('section', 'activity-check-group');
+  activity.checks.forEach((check, checkIndex) => {
+    const saved = savedChecks[check.id];
+    const card = el('section', 'activity-check');
+    card.append(el('div', 'eyebrow', `Concept check ${checkIndex + 1} of ${activity.checks.length}`));
+    card.append(el('h5', null, check.question));
+    const options = el('div', 'checkpoint-options');
+    const feedback = el('p', 'checkpoint-feedback');
+    feedback.setAttribute('aria-live', 'polite');
+    feedback.hidden = saved === undefined;
+
+    check.options.forEach((option, optionIndex) => {
+      const button = el('button', 'answer-option', option);
+      button.type = 'button';
+      button.dataset.index = optionIndex;
+      button.disabled = saved === check.answer;
+      button.classList.toggle('correct', saved === check.answer && optionIndex === check.answer);
+      button.classList.toggle('incorrect', saved !== undefined && saved !== check.answer && optionIndex === saved);
+      button.addEventListener('click', () => {
+        const correct = optionIndex === check.answer;
+        for (const candidate of options.querySelectorAll('button')) {
+          candidate.classList.remove('correct', 'incorrect');
+          if (correct) {
+            candidate.disabled = true;
+            candidate.classList.toggle('correct', Number(candidate.dataset.index) === check.answer);
+          }
         }
-      }
-      button.classList.toggle('incorrect', !correct);
+        button.classList.toggle('incorrect', !correct);
+        feedback.className = `checkpoint-feedback ${correct ? 'correct' : 'incorrect'}`;
+        feedback.textContent = correct
+          ? `Correct. ${check.explanation}`
+          : `Not quite. ${check.retryExplanations[optionIndex]}`;
+        feedback.hidden = false;
+        savedChecks[check.id] = optionIndex;
+        progress.deep[activity.id] = activityChecksComplete(progress, activity);
+        saveHardcoreProgress();
+        updateHardcoreProgress(lesson);
+        status.textContent = progress.deep[activity.id]
+          ? 'All concept checks complete'
+          : `${activity.checks.filter((candidate) => savedChecks[candidate.id] === candidate.answer).length} of ${activity.checks.length} checks complete`;
+        status.classList.toggle('complete', progress.deep[activity.id]);
+      });
+      options.append(button);
+    });
+
+    if (saved !== undefined) {
+      const correct = saved === check.answer;
       feedback.className = `checkpoint-feedback ${correct ? 'correct' : 'incorrect'}`;
       feedback.textContent = correct
-        ? `Correct. ${check.explanation}`
-        : 'Not quite. Re-read the activity goal and the evidence you are expected to record, then try again.';
-      feedback.hidden = false;
-      lessonProgress(lesson).multipleChoice[activity.id] = optionIndex;
-      saveHardcoreProgress();
-    });
-    options.append(button);
+        ? `Mastered. ${check.explanation}`
+        : `Not quite. ${check.retryExplanations[saved]}`;
+    }
+    card.append(options, feedback);
+    group.append(card);
   });
 
-  if (saved !== undefined) {
-    const correct = saved === check.answer;
-    feedback.className = `checkpoint-feedback ${correct ? 'correct' : 'incorrect'}`;
-    feedback.textContent = correct
-      ? `Mastered. ${check.explanation}`
-      : 'Not quite. Re-read the activity goal and the evidence you are expected to record, then try again.';
+  const checksComplete = activityChecksComplete(progress, activity);
+  if (progress.deep[activity.id] !== checksComplete) {
+    progress.deep[activity.id] = checksComplete;
+    progressChanged = true;
   }
-  card.append(options, feedback);
-  return card;
+  if (progressChanged) saveHardcoreProgress();
+  const completeCount = activity.checks.filter((check) => savedChecks[check.id] === check.answer).length;
+  const status = el(
+    'p',
+    `activity-check-status${progress.deep[activity.id] ? ' complete' : ''}`,
+    progress.deep[activity.id]
+      ? 'All concept checks complete'
+      : `${completeCount} of ${activity.checks.length} checks complete`,
+  );
+  group.append(status);
+  return group;
 }
 
 function renderHardcoreIntro(container, lesson) {
@@ -631,8 +681,8 @@ function renderDeepActivity(lesson, activity, sourceIndex) {
   card.append(instructions);
 
   if (activity.diagram) card.append(renderDiagram(activity.diagram));
-  if (!activity.sql && !activity.starterSql && activity.multipleChoice) {
-    card.append(renderActivityMultipleChoice(lesson, activity));
+  if (!activity.sql && !activity.starterSql && activity.checks?.length) {
+    card.append(renderActivityChecks(lesson, activity));
   }
 
   if (activity.sql) {
@@ -708,7 +758,9 @@ function renderDeepActivity(lesson, activity, sourceIndex) {
     card.append(sources);
   }
 
-  appendDeepMasteryCheck(card, lesson, activity);
+  if (activity.sql || activity.starterSql) {
+    appendDeepMasteryCheck(card, lesson, activity);
+  }
   return card;
 }
 

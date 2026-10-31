@@ -15,10 +15,18 @@ test('Hardcore browser contract keeps guided stages and progressive disclosure',
     'Read this exact part:',
     'estimate, not a deadline',
     'activityId: activity.id',
+    'Concept check',
+    'activityChecksComplete',
+    'All concept checks complete',
+    'check.retryExplanations[optionIndex]',
   ]) {
     assert.ok(app.includes(requiredText), `app.js is missing ${requiredText}`);
   }
   assert.ok(app.includes('details'), 'worked answers should use native disclosure elements');
+  assert.doesNotMatch(
+    app,
+    /Re-read the activity goal and the evidence you are expected to record/,
+  );
 });
 
 test('SQL guide accepts exact activity explanations before generic definitions', () => {

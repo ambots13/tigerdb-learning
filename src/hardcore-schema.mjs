@@ -8,6 +8,22 @@ function asText(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function normalizeCheck(check, index, activity) {
+  const options = Array.isArray(check.options) ? check.options : [];
+  const explanation = asText(check.explanation);
+  const retryExplanations = Array.isArray(check.retryExplanations)
+    ? check.retryExplanations
+    : [];
+  return {
+    ...check,
+    id: asText(check.id) || `${activity.id}-check-${index + 1}`,
+    question: asText(check.question),
+    options,
+    explanation,
+    retryExplanations,
+  };
+}
+
 function buildVocabulary(activity) {
   const terms = new Map();
   const add = (term, simpleMeaning, technicalMeaning, example) => {
@@ -48,26 +64,11 @@ export function normalizeActivity(activity, sourceIndex) {
   const sourceRefs = (activity.sourceIds ?? []).map((sourceId) => sourceIndex.get(sourceId)).filter(Boolean);
   const steps = activity.steps ?? instructions.map((instruction, index) => normalizeStep(instruction, index, activity));
   const typical = Math.max(15, Math.round((steps.length * 4 + (sql ? 5 : 8))));
-  const firstEvidence = typeof evidence[0] === 'string' ? evidence[0] : evidence[0]?.item;
-  const multipleChoice = sql ? undefined : activity.multipleChoice ?? (
-    Number.isInteger(activity.beforeYouRun?.answer)
-      ? {
-          question: activity.beforeYouRun.predictionQuestion,
-          options: activity.beforeYouRun.predictionChoices,
-          answer: activity.beforeYouRun.answer,
-          explanation: activity.beforeYouRun.explanation,
-        }
-      : {
-          question: `Which evidence would best show that you completed “${activity.title}”?`,
-          options: [
-            firstEvidence ?? 'The concrete evidence named by the activity.',
-            'A successful but unrelated SQL query.',
-            'A conclusion based only on intuition, with no recorded reasoning.',
-          ],
-          answer: 0,
-          explanation: `Completion requires the named evidence: ${firstEvidence ?? 'a concrete result or written explanation that supports the claim.'}`,
-        }
-  );
+  const authoredChecks = activity.checks
+    ?? (activity.multipleChoice ? [activity.multipleChoice] : []);
+  const checks = sql
+    ? []
+    : authoredChecks.map((check, index) => normalizeCheck(check, index, activity));
 
   return {
     ...activity,
@@ -81,9 +82,10 @@ export function normalizeActivity(activity, sourceIndex) {
       predictionChoices: ['A single value', 'Several rows with named columns', 'A query plan or written explanation'],
       explanation: 'A prediction gives you something specific to compare with the real result.',
     },
-    multipleChoice,
+    checks,
     steps,
     sqlWalkthrough: activity.sqlWalkthrough ?? (sql ? [{ fragment: sql, explanation: 'Run this statement after making your prediction.', lessonConnection: activity.purpose }] : []),
+    migrateLegacyMultipleChoice: Boolean(activity.multipleChoice),
     hints: activity.hints ?? [
       { level: 1, text: `Start with the first action: ${steps[0]?.action ?? 'read the completion check'}` },
       { level: 2, text: 'Use the exact object, column, or output named in the evidence list.' },

@@ -45,11 +45,29 @@ test('every lesson has a complete Hardcore Mode supplement', async () => {
         assert.ok(sourceIds.has(sourceId), `${lesson.id} references unknown source ${sourceId}`);
       }
       if (!activity.sql && !activity.starterSql) {
-        assert.ok(activity.multipleChoice, `${activity.id} needs a multiple-choice check`);
-        assert.ok(activity.multipleChoice.options.length >= 3);
-        assert.ok(Number.isInteger(activity.multipleChoice.answer));
-        assert.ok(activity.multipleChoice.options[activity.multipleChoice.answer]);
-        assert.ok(activity.multipleChoice.explanation);
+        assert.ok(activity.checks.length >= 1, `${activity.id} needs authored concept checks`);
+        for (const check of activity.checks) {
+          assert.ok(check.id);
+          assert.ok(check.options.length >= 3);
+          assert.equal(new Set(check.options).size, check.options.length);
+          assert.ok(Number.isInteger(check.answer));
+          assert.ok(check.options[check.answer]);
+          assert.ok(check.explanation);
+          assert.equal(check.retryExplanations.length, check.options.length);
+          const wrongFeedback = [];
+          check.retryExplanations.forEach((feedback, optionIndex) => {
+            if (optionIndex !== check.answer) {
+              assert.ok(feedback.trim());
+              assert.notEqual(feedback.trim(), check.explanation.trim());
+              wrongFeedback.push(feedback.trim());
+            }
+          });
+          assert.equal(
+            new Set(wrongFeedback).size,
+            wrongFeedback.length,
+            `${activity.id} ${check.id} needs misconception-specific retry feedback`,
+          );
+        }
       }
     }
 
@@ -65,6 +83,32 @@ test('every lesson has a complete Hardcore Mode supplement', async () => {
       for (const field of ['title', 'prompt', 'starterSql', 'hint', 'solution', 'success']) {
         assert.equal(typeof drill[field], 'string');
         assert.ok(drill[field].trim(), `${lesson.id} drill is missing ${field}`);
+      }
+    }
+  }
+});
+
+test('non-SQL activities remain concept-specific and browser-answerable', () => {
+  const forbidden = [
+    'Which evidence would best show',
+    'You have a concrete note, table, or answer',
+    'Complete the requested work and show',
+  ];
+  for (const lessonId of Object.keys(hardcoreByLesson)) {
+    const activities = getHardcoreLesson(lessonId).deepDive.phases
+      .flatMap((phase) => phase.activities)
+      .filter((activity) => !activity.sql && !activity.starterSql);
+    for (const activity of activities) {
+      const text = JSON.stringify(activity);
+      for (const phrase of forbidden) {
+        assert.ok(!text.includes(phrase), `${activity.id} contains generic text: ${phrase}`);
+      }
+      for (const step of activity.steps) {
+        assert.doesNotMatch(
+          step.action,
+          /^(write|draw|sketch|prove)\b/i,
+          `${activity.id} requires an unsupported response`,
+        );
       }
     }
   }

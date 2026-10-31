@@ -1,14 +1,123 @@
-const activity = (id, type, claim, title, purpose, instructions, evidence, sourceIds, extras = {}) => ({
-  id,
-  type,
-  claim,
-  title,
-  purpose,
-  instructions,
-  evidence,
-  sourceIds,
-  ...extras,
-});
+function authoredNonSql(checks, term, meaning) {
+  const normalizedChecks = checks.map(([id, question, options, answer, explanation, retryExplanations]) => ({
+    id,
+    question,
+    options,
+    answer,
+    explanation,
+    retryExplanations: retryExplanations.map((feedback, index) => feedback ?? (index === answer ? explanation : 'Reconsider this choice.')),
+  }));
+  const workedExplanation = normalizedChecks.map((check) => check.explanation).join(' ');
+  return {
+    instructions: [
+      'Choose an answer for each browser check.',
+      'Use the feedback to retry any incorrect choice; no written artifact is required.',
+    ],
+    checks: normalizedChecks,
+    vocabulary: [{ term, simpleMeaning: meaning, technicalMeaning: meaning, example: normalizedChecks[0].explanation }],
+    steps: normalizedChecks.map((check, index) => ({
+      id: `${check.id}-step`,
+      action: `Answer browser check ${index + 1}.`,
+      reason: check.question,
+      expectedResult: `The accepted decision is option ${check.answer + 1}: ${check.options[check.answer]}`,
+      explanation: check.explanation,
+      troubleshooting: 'Read the feedback for the selected option, then compare it with the stated mechanism before retrying.',
+    })),
+    workedAnswer: {
+      answer: normalizedChecks.map((check) => check.options[check.answer]).join(' Then: '),
+      explanation: workedExplanation,
+      acceptableVariations: ['Select every correct browser option; no written artifact is required.'],
+      template: 'Choose the option whose mechanism matches the facts in the prompt.',
+      example: workedExplanation,
+    },
+    commonMistakes: [{
+      symptom: 'A familiar term is selected without checking the mechanism in the prompt.',
+      cause: `The distinction expressed by “${term}” was skipped.`,
+      fix: `Use this definition before retrying: ${meaning}`,
+    }],
+  };
+}
+
+const nonSqlAuthoring = {
+  '09-a02': authoredNonSql([['09-a02-check-1', 'Why can an Index Only Scan still report Heap Fetches?', ['The visibility map may not mark every needed heap page all-visible', 'INCLUDE columns are stored only in the heap', 'Index-only scans always fetch every heap row'], 0, 'The index supplies values, but PostgreSQL may visit the heap when the visibility map cannot prove tuple visibility.', [null, 'Included columns can be returned from the index.', 'Heap visits are conditional, not guaranteed for every row.']]], 'visibility map', 'A PostgreSQL structure whose all-visible bits can let a scan avoid per-row heap visibility checks.'),
+  '09-a03': authoredNonSql([['09-a03-check-1', 'A query filters JSONB with key-existence operator ?. Which index family supports that operator?', ['GIN with default jsonb_ops', 'GIN with jsonb_path_ops only', 'BRIN on the JSON text'], 0, 'Default jsonb_ops supports key-existence operators; jsonb_path_ops does not.', [null, 'jsonb_path_ops supports containment and jsonpath operators, not ?.', 'BRIN on text does not provide JSONB key-existence semantics.']]], 'operator class', 'The set of operators and behavior an index uses for a data type.'),
+  '09-a06': authoredNonSql([['09-a06-check-1', 'Which operator is omitted by jsonb_path_ops?', ['@>', '@?', '?'], 2, 'jsonb_path_ops supports @>, @?, and @@ but omits ?, ?|, and ?& key-existence operators.', ['Containment @> is supported.', 'JSON path matching @? is supported.', null]]], 'key-existence operator', 'A JSONB operator such as ?, ?|, or ?& that asks whether keys exist.'),
+  '09-a08': authoredNonSql([['09-a08-check-1', 'For repeated tenant filters plus trace lookup, which design keeps storage roles distinct?', ['segmentby tenant, order by time, and use per-batch bloom metadata for trace_id', 'segmentby unique trace_id and call each group a batch', 'Use firstlast metadata as a user-created bitmap'], 0, 'Tenant segmentation, time ordering, and sparse per-batch metadata solve different parts of the workload.', [null, 'Near-unique segments fragment groups, and a group can span multiple batches.', 'firstlast is automatic metadata, not a user-created roaring bitmap.']]], 'compressed batch', 'A physical columnar batch; multiple batches can belong to one segment group.'),
+  '09-a09': authoredNonSql([['09-a09-check-1', 'Which statement is accurate?', ['Index Only Scan means Heap Fetches must be zero', 'jsonb_path_ops supports @> but not ?', 'firstlast metadata is a roaring bitmap'], 1, 'jsonb_path_ops supports containment @> but omits the ? key-existence operator.', ['Visibility checks can still require heap fetches.', null, 'firstlast is automatic batch metadata, not pg_roaringbitmap.']]], 'index correctness', 'Matching an index’s physical behavior and supported operators to the actual query.'),
+  '09-a10': authoredNonSql([['09-a10-check-1', 'What makes an index experiment safe to approve?', ['Representative plans, write/storage budget, thresholds, observation window, and rollback triggers', 'A lower runtime from one execution', 'Zero scans since the last statistics reset'], 0, 'Comparable evidence and explicit operational limits distinguish an experiment from an irreversible guess.', [null, 'One execution is noisy and may reflect cache state.', 'Zero observed scans can reflect reset timing or rare jobs.']]], 'rollback trigger', 'A measurable condition that causes an experiment to be reversed.'),
+  '11-a02': authoredNonSql([['11-a02-check-1', 'What does a continuous aggregate watermark prove?', ['Materialization progress through a boundary', 'That no older event can ever arrive', 'That raw retention is always safe'], 0, 'The watermark describes materialization state, not a business guarantee about event lateness.', [null, 'Late arrivals depend on the ingest contract, not the watermark.', 'Retention safety also depends on refresh and repair horizons.']]], 'watermark', 'The boundary through which aggregate data has been materialized.'),
+  '11-a03': authoredNonSql([['11-a03-check-1', 'A refresh window starts and ends in the middle of hourly buckets. Which buckets are safely refreshed?', ['Only buckets fully contained by the effective refresh window', 'Every bucket touched by either boundary', 'No buckets can ever refresh'], 0, 'Continuous aggregate refresh works on complete buckets contained by its effective window.', [null, 'A partially covered bucket is not complete within the window.', 'Aligned or sufficiently wide windows can contain complete buckets.']]], 'complete bucket', 'An aggregate bucket whose full time range lies inside the effective refresh window.'),
+  '11-a06': authoredNonSql([['11-a06-check-1', 'An old materialized bucket missed a late row. Why might real-time mode not fix it?', ['Real-time mode combines recent raw data, while the old bucket still needs targeted refresh', 'Real-time mode deletes invalidations', 'The row must belong to two buckets'], 0, 'Historical stale materialization is repaired by refreshing its affected range.', [null, 'Mode changes do not erase lifecycle evidence.', 'Bucket boundaries assign a timestamp once.']]], 'targeted refresh', 'An explicit refresh of the historical aggregate range affected by late or corrected data.'),
+  '11-a08': authoredNonSql([['11-a08-check-1', 'Which design handles normal lateness plus rare approved backfills?', ['A recurring policy lane and a monitored targeted-repair lane', 'Make every policy refresh all history forever', 'Rely only on real-time mode'], 0, 'Routine overlap handles the normal contract; bounded targeted repair handles exceptional historical changes.', [null, 'Unbounded refresh wastes work and still lacks incident controls.', 'Real-time mode does not repair every old materialized bucket.']]], 'repair lane', 'A controlled workflow for exceptional historical refreshes outside the normal policy window.'),
+  '11-a09': authoredNonSql([['11-a09-check-1', 'Which condition must hold before raw retention removes a bucket?', ['All accepted late data is incorporated and the final refresh is verified', 'The watermark exists somewhere', 'Real-time mode is enabled'], 0, 'Repairable source must remain until lateness closes and dependent materialization is current.', [null, 'A watermark alone does not prove this bucket is safe.', 'Real-time mode cannot reconstruct deleted source rows.']]], 'refresh-before-delete', 'The rule that dependent aggregates must be finalized before their raw source is removed.'),
+  '11-a10': authoredNonSql([['11-a10-check-1', 'Which evidence best supports a freshness SLO?', ['Bucket age, watermark lag, policy success, and sampled late-row repair checks', 'Dashboard load time alone', 'A promise that data is current'], 0, 'Freshness needs measurable materialization and repair indicators, not only query latency.', [null, 'Fast stale results still violate freshness.', 'An unmeasured promise cannot be monitored.']]], 'freshness SLO', 'A measurable reliability target for how current query results must be.'),
+  '12-a02': authoredNonSql([['12-a02-check-1', 'Which statement correctly relates segment groups and batches?', ['One segment group may span multiple compressed batches', 'A segment group and a batch are always identical', 'Every row should be its own segment group'], 0, 'Segment values define a logical group, while physical batch sizing can split that group.', [null, 'The terms describe different layers.', 'One-row groups create high metadata overhead.']]], 'segment group', 'Rows sharing segmentby values; it can be stored across more than one compressed batch.'),
+  '12-a03': authoredNonSql([['12-a03-check-1', 'A device emits many optional metrics and queries usually read a few named metrics. Which starting shape is flexible?', ['A narrow metric-name/value shape', 'A new table for every reading', 'One permanently fixed column set regardless of change'], 0, 'A narrow shape accommodates evolving metric names, though its row amplification and query costs must be measured.', [null, 'Per-reading tables are not a usable analytic schema.', 'A fixed wide schema makes new metrics require repeated schema changes.']]], 'narrow schema', 'A row shape where metric identity and value are columns, producing multiple rows per observation.'),
+  '12-a06': authoredNonSql([['12-a06-check-1', 'Why is a nearly unique segmentby key usually harmful?', ['It creates tiny groups and high per-group metadata overhead', 'It always improves batch pruning', 'It automatically merges tenants'], 0, 'Useful segmentation relies on repetition; near-unique values prevent substantial grouping.', [null, 'Tiny groups can reduce batching efficiency.', 'Segmentation separates values rather than merging unrelated tenants.']]], 'cardinality', 'The number of distinct values in a column or set.'),
+  '12-a08': authoredNonSql([['12-a08-check-1', 'A product adds metrics frequently and sometimes filters by metric name. Which migration-friendly starting point is defensible?', ['Use a narrow metric table and validate row amplification and layout', 'Hard-code every future metric as a required column now', 'Segment by a unique reading ID'], 0, 'A narrow shape supports changing metric sets, but must be validated for scale and query patterns.', [null, 'Unknown future metrics cannot be reliably hard-coded.', 'A unique segment key produces one-row groups.']]], 'migration room', 'A schema’s ability to accommodate expected changes without unsafe or excessive rewrites.'),
+  '12-a09': authoredNonSql([['12-a09-check-1', 'Which statement is correct?', ['Wide schemas avoid row amplification but may be awkward for many changing optional metrics', 'Narrow schemas always use less storage', 'Near-unique segmentby values always compress best'], 0, 'Wide and narrow shapes trade column flexibility, row count, nulls, and query complexity.', [null, 'Narrow shapes multiply rows and can add repeated metadata.', 'Near-unique segments usually harm grouping efficiency.']]], 'row amplification', 'The increase in physical rows caused by representing one logical observation as multiple metric rows.'),
+  '12-a10': authoredNonSql([['12-a10-check-1', 'Which scorecard is sufficient for a columnstore conversion?', ['Storage ratio, ingest cost, representative plans, pruning, conversion time, thresholds, and rollback', 'Compression ratio only', 'A subjective preference for fewer columns'], 0, 'A safe decision balances storage, read/write performance, and operability.', [null, 'Excellent compression can still accompany unacceptable queries or conversion cost.', 'Preference is not workload evidence.']]], 'conversion scorecard', 'A set of measured acceptance criteria for evaluating a storage-layout change.'),
+  '13-a02': authoredNonSql([['13-a02-check-1', 'Which sequence describes a two-step Toolkit analysis?', ['Build a state, roll up compatible states when supported, then use an accessor', 'Use an accessor before building a state', 'Assume every hyperfunction supports rollup'], 0, 'State builders, optional rollups, and accessors are distinct API layers.', [null, 'Accessors require the appropriate state.', 'Rollup support must be verified per state type.']]], 'two-step aggregation', 'Building a reusable aggregate state first and extracting final results with accessors later.'),
+  '13-a03': authoredNonSql([['13-a03-check-1', 'Which contract makes a missing heartbeat count as downtime?', ['A defined observation window and liveness interval say when silence means not live', 'Every missing row is universally downtime', 'state_agg chooses the service contract automatically'], 0, 'Heartbeat meaning comes from an explicit expected cadence, liveness interval, and window edges.', [null, 'Silence can have other meanings unless the service contract defines it.', 'A function cannot infer business semantics.']]], 'liveness interval', 'How long after a heartbeat the monitored entity is considered live.'),
+  '13-a06': authoredNonSql([['13-a06-check-1', 'Which statement avoids false precision?', ['LTTB resolution is a target; measure returned points and extrema behavior', 'LTTB always returns exactly the requested count and every extreme', 'Heartbeat uptime is valid without a liveness assumption'], 0, 'Approximation and state semantics must be measured and stated rather than promoted to guarantees.', [null, 'Resolution is not an exact output-count or extreme-preservation guarantee.', 'Heartbeat results depend on a defined liveness interval.']]], 'false precision', 'Presenting an estimate or assumption-dependent result as an exact guarantee.'),
+  '13-a08': authoredNonSql([['13-a08-check-1', 'Which state matches a service-availability question based on periodic check-ins?', ['heartbeat_agg with an explicit liveness interval', 'LTTB downsampling', 'A candlestick state'], 0, 'heartbeat_agg models expected check-ins and inferred live/dead ranges under a stated contract.', [null, 'LTTB preserves visual shape rather than availability intervals.', 'Candlesticks summarize price-like open/high/low/close data.']]], 'heartbeat state', 'An aggregate state that models liveness from observed heartbeats and a defined liveness interval.'),
+  '13-a09': authoredNonSql([['13-a09-check-1', 'Which semantic claim is accurate?', ['LTTB is approximate and its resolution is not an exact point-count guarantee', 'state_agg defines window-edge meaning without input assumptions', 'All Toolkit states support rollup'], 0, 'LTTB downsampling preserves representative shape approximately; callers must measure its output.', [null, 'State duration requires explicit edge semantics.', 'Rollup support varies and must be verified.']]], 'approximation boundary', 'The stated limit separating what an algorithm estimates from what it guarantees exactly.'),
+  '13-a10': authoredNonSql([['13-a10-check-1', 'What should happen before materializing a hyperfunction result?', ['Validate it against a small raw-SQL or visual oracle with edge cases', 'Assume the function name proves the semantics', 'Delete raw input first'], 0, 'A small independent oracle exposes mismatched windows, null handling, resets, or liveness assumptions.', [null, 'Names do not define application semantics.', 'Deleting raw input removes the best validation and repair source.']]], 'oracle', 'A simpler independently understood result used to check a more complex computation.'),
+  '14-a02': authoredNonSql([['14-a02-check-1', 'A parent plan node reports 100 ms inclusive time and its child reports 80 ms. What can you safely infer?', ['The parent subtree took about 100 ms; the parent’s own work is not simply another 100 ms', 'The subtree took 180 ms', 'The parent performed no work'], 0, 'Inclusive node time contains child work, so adding parent and child times double-counts.', [null, 'The child’s time is already included in the parent.', 'The difference is only a rough clue, not proof of zero parent work.']]], 'inclusive time', 'A node’s execution time including work performed by its descendants.'),
+  '14-a03': authoredNonSql([['14-a03-check-1', 'Where should plan diagnosis begin when row estimates diverge?', ['At the earliest node where estimated and actual rows become meaningfully different', 'At the root only', 'By adding an index before reading nodes'], 0, 'Early cardinality errors propagate into later join, scan, and memory choices.', [null, 'The root shows the final symptom, not necessarily its origin.', 'A physical change needs a diagnosed cause.']]], 'first bad estimate', 'The earliest plan node with a consequential difference between estimated and actual rows.'),
+  '14-a05': authoredNonSql([['14-a05-check-1', 'How should repeated timing measurements report cache effects?', ['Run comparable repetitions and disclose cold/warm cache state and variance', 'Keep only the fastest run', 'Assume every run has identical cache state'], 0, 'Transparent repetitions distinguish persistent behavior from cache warming and noise.', [null, 'Cherry-picking hides representative performance.', 'Earlier reads commonly change later cache state.']]], 'cache state', 'Whether needed data and index pages are already held in memory for a run.'),
+  '14-a06': authoredNonSql([['14-a06-check-1', 'A node shows 100 actual rows and 20 loops. Which quantity reflects total row production across invocations?', ['Approximately 2,000 rows', '100 rows', '20 rows'], 0, 'Per-loop actual rows multiplied by loops gives about 2,000 produced rows.', [null, 'This ignores the node’s 20 invocations.', 'This counts invocations but not rows per invocation.']]], 'loops', 'The number of times a plan node was invoked; actual rows and time are commonly reported per loop.'),
+  '14-a08': authoredNonSql([['14-a08-check-1', 'Which triage order is most causal?', ['Verify context, find estimate divergence, inspect rows/loops/filters/chunks, then buffers and timing', 'Recommend indexes from total time alone', 'Tune memory before checking row counts'], 0, 'Diagnosis should locate wrong assumptions and excess work before selecting a remedy.', [null, 'Total time does not identify the cause.', 'Memory tuning may hide rather than explain cardinality or filtering problems.']]], 'causal triage', 'An investigation ordered to find the earliest evidence that explains later symptoms.'),
+  '14-a09': authoredNonSql([['14-a09-check-1', 'Which interpretation is valid?', ['Rows removed by filter reveal work done and discarded', 'Planner cost is elapsed milliseconds', 'One warm run proves production latency'], 0, 'Discarded rows can reveal a weak access path or late filter.', [null, 'Planner cost uses internal units.', 'One run lacks variance and cache disclosure.']]], 'rows removed by filter', 'Rows a node processed but rejected by its filter condition.'),
+  '14-a10': authoredNonSql([['14-a10-check-1', 'What belongs first in a reusable tuning evidence ladder?', ['Connection/query context and a reproducible baseline plan', 'A predetermined index', 'A success claim without before/after evidence'], 0, 'Context and a baseline make later estimates, actuals, buffers, and changes comparable.', [null, 'The remedy should follow diagnosis.', 'Without comparable evidence, improvement is not demonstrated.']]], 'evidence ladder', 'An ordered set of increasingly specific observations used to diagnose and verify a tuning change.'),
+};
+
+const lesson10RetryExplanations = {
+  '10-a02': ['Consecutive values form dense runs that roaring containers can encode efficiently.', 'Scattered values often need more containers or representations.', 'Equal cardinality does not imply equal storage; distribution matters.'],
+  '10-a03': ['The intersection is {2, 3}, so two users return.', 'Three is each set’s cardinality, not their intersection.', 'Four is the union cardinality, not the returning count.'],
+  '10-a06': ['A bitmap of member IDs does not retain the deleted event’s full row or timestamp.', 'The bitmap can prove membership, not reconstruct the event timestamp.', 'VACUUM manages storage; it cannot recreate deleted source facts.'],
+  '10-a08': ['The smallest supported query window sets the required time precision.', 'A day is not universal; it cannot answer supported sub-day membership questions.', 'Extension versions do not define product query granularity.'],
+  '10-a09': ['Roaring bitmaps represent exact integer membership.', 'Random UUIDs need a stable integer mapping before bitmap membership.', 'pg_roaringbitmap is a third-party extension, not TimescaleDB Toolkit.'],
+  '10-a10': ['Approximate-only counting usually does not justify exact-set extension cost.', 'Adoption is conditional on exact membership needs and measured operational fit.', 'Lab availability is not production approval evidence.'],
+};
+
+const activity = (id, type, claim, title, purpose, instructions, evidence, sourceIds, extras = {}) => {
+  const lesson10Check = lesson10RetryExplanations[id] && extras.multipleChoice ? {
+    instructions: [
+      'Choose the browser answer that matches the bitmap concept.',
+      'Use the targeted feedback to retry if needed; no written artifact is required.',
+    ],
+    checks: [{
+      id: `${id}-check-1`,
+      question: extras.multipleChoice.question,
+      options: extras.multipleChoice.options,
+      answer: extras.multipleChoice.answer,
+      explanation: extras.multipleChoice.explanation,
+      retryExplanations: lesson10RetryExplanations[id],
+    }],
+    steps: [{
+      id: `${id}-check-step`,
+      action: 'Answer the concept check in the browser.',
+      reason: extras.multipleChoice.question,
+      expectedResult: `The accepted decision is option ${extras.multipleChoice.answer + 1}: ${extras.multipleChoice.options[extras.multipleChoice.answer]}`,
+      explanation: extras.multipleChoice.explanation,
+      troubleshooting: 'Use the feedback for the selected option to identify the misconception, then retry.',
+    }],
+  } : {};
+  return {
+    id,
+    type,
+    claim,
+    title,
+    purpose,
+    instructions,
+    evidence,
+    sourceIds,
+    ...extras,
+    ...(nonSqlAuthoring[id] ?? {}),
+    ...lesson10Check,
+  };
+};
 
 const phase = (id, title, minutes, overview, activities) => ({
   id,
@@ -245,7 +354,7 @@ ORDER BY sensor_id;`,
         ]),
       phase('09-p9', 'Review and transfer', standardMinutes[8],
         'Turn observations into a safe production experiment.', [
-          activity('09-a10', 'review', 'recommendation', 'Write the index change contract',
+          activity('09-a10', 'review', 'recommendation', 'Choose index change safeguards',
             'Ensure index work has workload, measurement, and rollback boundaries.', [
               'Specify representative queries, plan evidence, write/storage budget, and observation window.',
               'Define rollback triggers and account for statistics resets and rare jobs before removing an index.',
@@ -966,7 +1075,7 @@ ORDER BY age DESC, sensor_id;`,
         ]),
       phase('11-p9', 'Review and transfer', standardMinutes[8],
         'Create observability requirements for aggregate correctness.', [
-          activity('11-a10', 'review', 'recommendation', 'Define freshness SLO evidence',
+          activity('11-a10', 'review', 'recommendation', 'Choose freshness SLO evidence',
             'Move from configuration to monitored guarantees.', [
               'Specify raw-versus-rollup reconciliation samples, job failure alerts, and late-arrival percentiles.',
               'Document bucket timezone/alignment and maximum repairable event age.',
@@ -1126,7 +1235,7 @@ ORDER BY s.sensor_id;`,
         ]),
       phase('12-p9', 'Review and transfer', standardMinutes[8],
         'Turn schema design into an iterative measurement loop.', [
-          activity('12-a10', 'review', 'recommendation', 'Write the conversion scorecard',
+          activity('12-a10', 'review', 'recommendation', 'Choose conversion scorecard evidence',
             'Prevent compression ratio from becoming the only success measure.', [
               'Include storage ratio, ingest cost, key query plans, batch pruning, and operational conversion time.',
               'Set thresholds and a rollback route before changing production chunks.',
@@ -1465,7 +1574,7 @@ LIMIT 100;`,
         ]),
       phase('14-p9', 'Review and transfer', standardMinutes[8],
         'Adopt a repeatable plan-review protocol.', [
-          activity('14-a10', 'review', 'recommendation', 'Write the evidence ladder',
+          activity('14-a10', 'review', 'recommendation', 'Order the evidence ladder',
             'Ensure future tuning starts with the most diagnostic facts.', [
               'Order checks as context, estimates, actual rows/loops, filters, chunks, joins, memory/temp, buffers, and timing.',
               'Require before/after plans and a workload-safe rollback for every physical-design change.',

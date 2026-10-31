@@ -276,6 +276,12 @@ details > p { margin: 6px 0 8px !important; color: var(--muted); }
   border-radius: 7px;
   background: rgba(88, 166, 255, 0.05);
 }
+.activity-check-group {
+  margin: 12px 0;
+}
+.activity-check-group .activity-check {
+  margin: 8px 0;
+}
 .activity-check h5 {
   margin: 5px 0 8px;
   color: var(--text);
@@ -299,6 +305,12 @@ button.answer-option:disabled { cursor: default; filter: none; opacity: 0.78; }
 .checkpoint-feedback { margin: 8px 0 0; font-size: 12px; }
 .checkpoint-feedback.correct { color: #7ee787; }
 .checkpoint-feedback.incorrect { color: #ffb4ad; }
+.activity-check-status {
+  margin: 8px 0 0 !important;
+  color: var(--muted);
+  font: 11px/1.4 var(--mono) !important;
+}
+.activity-check-status.complete { color: #7ee787; }
 .drill-card > p { margin: 5px 0 8px; font-size: 12.5px; }
 .success-criteria {
   margin: 8px 0;
