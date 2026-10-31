@@ -17,6 +17,20 @@ export default {
         'forgets who was counted, so distinct counts cannot be added safely.\n\n' +
         'A roaring bitmap keeps the integer members of the set in compressed form. That lets PostgreSQL ' +
         'combine the sets first and count them afterward.',
+      analogy: {
+        title: 'Combine sticker books before counting children',
+        description: 'Two class lists both contain Sam. Counting each list separately counts Sam twice.',
+        mapping: 'Each sticker book is one time bucket, each numbered child is a member ID, and combining unique stickers is a bitmap union. Count only after duplicate stickers merge.',
+        source: `flowchart LR
+  BOOK1["Morning stickers: Ana, Sam"] --> MERGE["Combine matching child stickers"]
+  BOOK2["Afternoon stickers: Sam, Leo"] --> MERGE
+  MERGE --> UNIQUE["Ana, Sam, Leo"]
+  UNIQUE --> COUNT["3 children, not 4"]
+  classDef main fill:#332659,stroke:#d2a8ff,color:#ffffff
+  classDef good fill:#173b2a,stroke:#3fb950,color:#ffffff
+  class MERGE main
+  class UNIQUE,COUNT good`,
+      },
       diagram: {
         title: 'Why distinct counts do not add up',
         description: 'User 2 occurs in both hours, so adding hourly counts double-counts that user.',

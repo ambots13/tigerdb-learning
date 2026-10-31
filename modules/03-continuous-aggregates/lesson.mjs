@@ -39,6 +39,21 @@ ${RAW_QUERY};`,
         'tracks which time ranges changed and re-materializes only those. The definition must contain a ' +
         'time_bucket() on the hypertable\'s time column. WITH NO DATA means "create it empty and let me ' +
         'decide when to fill it" - always use it on a large table.',
+      analogy: {
+        title: 'A scoreboard instead of recounting every marble',
+        description: 'Keep a score for each jar. When one jar changes, recount only that jar—not the whole room.',
+        mapping: 'Marbles are raw rows, each jar is a time bucket, the written score is a materialized aggregate, and the note saying “this jar changed” is an invalidation.',
+        source: `flowchart LR
+  MARBLES["Many marbles in daily jars"] --> SCORES["Write one total on each jar"]
+  CHANGE["Add a marble to Tuesday"] --> NOTE["Mark Tuesday as changed"]
+  NOTE --> RECOUNT["Recount Tuesday only"]
+  RECOUNT --> SCORES
+  SCORES --> FAST["Read the jar totals quickly"]
+  classDef main fill:#332659,stroke:#d2a8ff,color:#ffffff
+  classDef good fill:#173b2a,stroke:#3fb950,color:#ffffff
+  class SCORES,NOTE main
+  class RECOUNT,FAST good`,
+      },
       diagram: {
         title: 'How a continuous aggregate stays current',
         description: 'TimescaleDB records which time range changed, refreshes only the affected summary buckets, and can read the newest unsummarized rows directly.',

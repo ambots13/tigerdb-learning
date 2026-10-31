@@ -27,7 +27,26 @@ segmentby groups rows that share a value into the same compressed batch. Choose 
 
 orderby controls the order of rows inside a batch. Time descending keeps similar values adjacent, which is what makes the encoding compact and recent-first scans cheap.
 
-_Filtering by sensor can skip unrelated batches, while sorting each chosen batch by time keeps nearby readings together._
+> **Everyday analogy — Sort crayons into color boxes, then line them up by size**
+
+```mermaid
+flowchart LR
+  PILE["Mixed pile of crayons"] --> BLUE["Blue box"]
+  PILE --> RED["Red box"]
+  PILE --> GREEN["Green box"]
+  ASK["Find blue crayons"] --> BLUE
+  BLUE --> ORDER["Blue crayons lined up by size"]
+  ASK -. "do not open" .-> RED
+  ASK -. "do not open" .-> GREEN
+  classDef main fill:#332659,stroke:#d2a8ff,color:#ffffff
+  classDef chosen fill:#173b2a,stroke:#3fb950,color:#ffffff
+  class BLUE,ORDER chosen
+  class ASK main
+```
+
+_If you want blue crayons, open only the blue box. Inside it, the crayons are already in a useful order._
+
+> **Back to the database** The crayon color is segmentby, each color box is a compressed batch, and crayon size order is orderby. A matching filter can skip unopened boxes.
 
 ```mermaid
 flowchart LR
@@ -43,6 +62,8 @@ flowchart LR
   class S2,ORDER chosen
   class S1,S3 skipped
 ```
+
+_Filtering by sensor can skip unrelated batches, while sorting each chosen batch by time keeps nearby readings together._
 
 ```sql
 ALTER TABLE readings SET (

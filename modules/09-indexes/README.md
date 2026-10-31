@@ -210,7 +210,25 @@ A rough decision order:
 
 Then confirm with pg_stat_user_indexes and delete whatever nothing uses.
 
-_Ask one question at a time. The result is a candidate, not a guarantee: always verify it with the real query plan._
+> **Everyday analogy — Use a library catalog instead of checking every shelf**
+
+```mermaid
+flowchart TD
+  QUESTION["I need books by author Lee"] --> CATALOG["Open the author catalog"]
+  CATALOG --> CARD["Card says Shelf 7"]
+  CARD --> SHELF["Go straight to Shelf 7"]
+  WRONG["Catalog sorted only by book color"] --> SLOW["Does not help this question"]
+  classDef main fill:#332659,stroke:#d2a8ff,color:#ffffff
+  classDef good fill:#173b2a,stroke:#3fb950,color:#ffffff
+  classDef bad fill:#3d2020,stroke:#f85149,color:#ffffff
+  class CATALOG,CARD main
+  class SHELF good
+  class WRONG,SLOW bad
+```
+
+_A catalog helps only when it is organized around the question you ask._
+
+> **Back to the database** Books are table rows, shelves are table pages, and catalog cards are index entries. Different indexes are different catalog arrangements, so the query shape decides which catalog may help.
 
 ```mermaid
 flowchart TD
@@ -238,6 +256,8 @@ flowchart TD
   class START decision
   class VERIFY verify
 ```
+
+_Ask one question at a time. The result is a candidate, not a guarantee: always verify it with the real query plan._
 
 ```sql
 SELECT

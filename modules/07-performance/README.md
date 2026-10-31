@@ -85,8 +85,6 @@ ALTER TABLE readings DROP COLUMN firmware;
 
 A documented starting criterion is that indexes for all chunks currently receiving writes fit in roughly 25% of available memory. Estimate index growth, then measure: overly wide chunks pressure the cache, while overly narrow chunks increase metadata and planning overhead.
 
-_Narrow chunks multiply planning metadata; wide chunks enlarge active indexes and reduce pruning precision._
-
 ```mermaid
 flowchart LR
   NARROW["Too narrow"] --> NM["Many chunks and more planning work"]
@@ -98,6 +96,8 @@ flowchart LR
   class NARROW,WIDE,NM,WM bad
   class BALANCED,BM,MEASURE good
 ```
+
+_Narrow chunks multiply planning metadata; wide chunks enlarge active indexes and reduce pruning precision._
 
 ```sql
 SELECT

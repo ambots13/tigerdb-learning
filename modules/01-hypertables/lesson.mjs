@@ -16,6 +16,21 @@ export default {
         'standard SQL. Underneath, rows are automatically partitioned by time into chunks. The only new thing ' +
         'here is the WITH (tsdb.hypertable) clause. The first timestamp column becomes the partitioning ' +
         'column unless you name one explicitly.',
+      analogy: {
+        title: 'One toy box label, several drawers',
+        description: 'You say “put away my toy,” and the cabinet chooses the drawer marked for that week.',
+        mapping: 'The cabinet label is the hypertable. Each dated drawer is a chunk. The toy’s date tells TimescaleDB which chunk receives the row.',
+        source: `flowchart LR
+  KID["You hand over a toy dated Week 3"] --> CABINET["Toy cabinet called conditions"]
+  CABINET --> D1["Week 1 drawer"]
+  CABINET --> D2["Week 2 drawer"]
+  CABINET --> D3["Week 3 drawer"]
+  D3 --> FOUND["Toy goes into the matching drawer"]
+  classDef main fill:#332659,stroke:#d2a8ff,color:#ffffff
+  classDef chosen fill:#173b2a,stroke:#3fb950,color:#ffffff
+  class CABINET main
+  class D3,FOUND chosen`,
+      },
       diagram: {
         title: 'One logical hypertable, many physical time chunks',
         description: 'Applications use one table while TimescaleDB routes each row to the chunk covering its timestamp.',

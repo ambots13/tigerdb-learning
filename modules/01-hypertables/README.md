@@ -17,7 +17,24 @@ Create a hypertable, watch chunks appear, and see the planner skip the ones it d
 
 A hypertable looks and behaves like an ordinary table: you INSERT, SELECT, UPDATE and DELETE with standard SQL. Underneath, rows are automatically partitioned by time into chunks. The only new thing here is the WITH (tsdb.hypertable) clause. The first timestamp column becomes the partitioning column unless you name one explicitly.
 
-_Applications use one table while TimescaleDB routes each row to the chunk covering its timestamp._
+> **Everyday analogy — One toy box label, several drawers**
+
+```mermaid
+flowchart LR
+  KID["You hand over a toy dated Week 3"] --> CABINET["Toy cabinet called conditions"]
+  CABINET --> D1["Week 1 drawer"]
+  CABINET --> D2["Week 2 drawer"]
+  CABINET --> D3["Week 3 drawer"]
+  D3 --> FOUND["Toy goes into the matching drawer"]
+  classDef main fill:#332659,stroke:#d2a8ff,color:#ffffff
+  classDef chosen fill:#173b2a,stroke:#3fb950,color:#ffffff
+  class CABINET main
+  class D3,FOUND chosen
+```
+
+_You say “put away my toy,” and the cabinet chooses the drawer marked for that week._
+
+> **Back to the database** The cabinet label is the hypertable. Each dated drawer is a chunk. The toy’s date tells TimescaleDB which chunk receives the row.
 
 ```mermaid
 flowchart TD
@@ -33,6 +50,8 @@ flowchart TD
   class TABLE,QUERY,PRUNE logical
   class C1,C2,C3 physical
 ```
+
+_Applications use one table while TimescaleDB routes each row to the chunk covering its timestamp._
 
 ```sql
 DROP TABLE IF EXISTS conditions;

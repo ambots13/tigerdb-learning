@@ -18,6 +18,9 @@ test('lesson diagrams use the local strict Mermaid renderer', () => {
   assert.match(app, /Zoom in/);
   assert.match(app, /Zoom out/);
   assert.match(app, /Math\.min\(250, Math\.max\(75, nextZoom\)\)/);
+  assert.match(app, /Everyday analogy/);
+  assert.match(app, /Back to the database:/);
+  assert.match(app, /'diagram-description', diagram\.description/);
 });
 
 test('lesson 10 exposes complete Mermaid definitions', () => {
@@ -34,6 +37,22 @@ test('lesson 10 exposes complete Mermaid definitions', () => {
     assert.ok(diagram.description);
     assert.match(diagram.source, /^flowchart (?:LR|TD)\n/);
     assert.ok(diagram.source.includes('classDef'));
+  }
+});
+
+test('analogy illustrations include an explicit database mapping', async () => {
+  const lessons = await loadAllLessons();
+  const analogies = lessons.flatMap((lesson) =>
+    lesson.steps.flatMap((step) => step.analogy ? [{ lesson, step, analogy: step.analogy }] : []),
+  );
+
+  assert.ok(analogies.length >= 8);
+  for (const { lesson, step, analogy } of analogies) {
+    assert.ok(analogy.title, `${lesson.id} ${step.title} analogy needs a title`);
+    assert.ok(analogy.description, `${lesson.id} ${step.title} analogy needs a description`);
+    assert.ok(analogy.mapping, `${lesson.id} ${step.title} analogy needs a database mapping`);
+    assert.match(analogy.source, /^flowchart (?:LR|TD)\n/);
+    assert.ok(analogy.source.includes('classDef'));
   }
 });
 

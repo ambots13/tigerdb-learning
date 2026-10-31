@@ -269,13 +269,13 @@ function appendDisclosure(container, label, content, className = '') {
   container.append(details);
 }
 
-function renderDiagram(diagram) {
-  const figure = el('figure', 'lesson-diagram');
+function renderDiagram(diagram, kind = 'technical') {
+  const figure = el('figure', `lesson-diagram diagram-${kind}`);
+  if (kind === 'analogy') {
+    figure.append(el('div', 'diagram-kind', 'Everyday analogy'));
+  }
   const caption = el('figcaption');
   caption.append(el('strong', null, diagram.title));
-  if (diagram.description) {
-    caption.append(document.createTextNode(` — ${diagram.description}`));
-  }
   figure.append(caption);
 
   const canvas = el('div', 'diagram-canvas');
@@ -283,6 +283,10 @@ function renderDiagram(diagram) {
   canvas.setAttribute('aria-label', diagram.description || diagram.title);
   canvas.append(el('p', 'diagram-loading', 'Rendering diagram...'));
   figure.append(canvas);
+
+  if (diagram.description) {
+    figure.append(el('p', 'diagram-description', diagram.description));
+  }
 
   const controls = el('div', 'diagram-controls');
   controls.setAttribute('role', 'group');
@@ -300,6 +304,13 @@ function renderDiagram(diagram) {
   source.append(el('summary', null, 'View diagram as text'));
   source.append(el('pre', null, diagram.source));
   figure.append(source);
+
+  if (diagram.mapping) {
+    const mapping = el('p', 'diagram-mapping');
+    mapping.append(el('strong', null, 'Back to the database: '));
+    mapping.append(document.createTextNode(diagram.mapping));
+    figure.append(mapping);
+  }
 
   if (!window.mermaid) {
     canvas.replaceChildren(el('p', 'diagram-error', 'Diagram renderer is unavailable. Use the text version below.'));
@@ -792,6 +803,7 @@ function renderLesson(lesson) {
       );
     }
     if (step.explain) wrapper.append(el('p', null, step.explain));
+    if (step.analogy) wrapper.append(renderDiagram(step.analogy, 'analogy'));
     if (step.diagram) wrapper.append(renderDiagram(step.diagram));
     if (step.sql) {
       wrapper.append(window.SqlGuide.render(step.sql, step.title, step.explain));

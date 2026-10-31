@@ -224,8 +224,6 @@ LIMIT 5;
 
 One hypertable, one continuous aggregate, three policies. That is the whole pipeline: ingest stays plain SQL, the dashboard reads pre-computed rollups, storage shrinks automatically after a week, and data expires on schedule without anyone running a cron job.
 
-_Writes enter one hypertable, dashboard history comes from a maintained rollup, and policies manage storage over time._
-
 ```mermaid
 flowchart LR
   VEHICLES["Vehicle telemetry"] -->|INSERT| RAW["fleet_telemetry hypertable"]
@@ -242,6 +240,8 @@ flowchart LR
   class LIVE,HISTORY query
   class REFRESH,COLUMN,RETAIN lifecycle
 ```
+
+_Writes enter one hypertable, dashboard history comes from a maintained rollup, and policies manage storage over time._
 
 ```sql
 SELECT

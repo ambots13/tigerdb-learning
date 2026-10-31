@@ -35,7 +35,22 @@ ORDER BY bucket;
 
 gapfill emits a row for every bucket in the requested range, whether or not data exists. The range comes from the WHERE clause, so it needs explicit start and end bounds on the time column.
 
-_The original query omits empty hours; gapfill restores the complete time axis and leaves missing values as NULL._
+> **Everyday analogy — Put the missing pages back into a calendar**
+
+```mermaid
+flowchart LR
+  BEFORE["Calendar has Monday, Wednesday, Thursday"] --> GAP["Add the missing dated page"]
+  GAP --> AFTER["Monday, Tuesday blank, Wednesday, Thursday"]
+  AFTER --> CHOICE["Leave Tuesday blank or estimate a value later"]
+  classDef main fill:#332659,stroke:#d2a8ff,color:#ffffff
+  classDef blank fill:#3d2020,stroke:#f85149,color:#ffffff
+  class GAP main
+  class CHOICE blank
+```
+
+_A calendar should show every day, even when nothing happened on Tuesday._
+
+> **Back to the database** Calendar pages are time buckets. Existing notes are measured values. gapfill restores missing bucket rows, while the value stays blank or NULL until you choose how to fill it.
 
 ```mermaid
 flowchart LR
@@ -57,6 +72,8 @@ flowchart LR
   class B11,B12 missing
   class AFTER complete
 ```
+
+_The original query omits empty hours; gapfill restores the complete time axis and leaves missing values as NULL._
 
 ```sql
 SELECT

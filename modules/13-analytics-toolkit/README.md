@@ -196,7 +196,26 @@ LIMIT 6;
 
 state_agg, heartbeat_agg, candlestick, and time_weight are documented two-step aggregates whose states can be combined with matching rollup functions. LTTB is a downsampling aggregate returning a timevector and should not be presented as the same rollup pattern.
 
-_Intermediate states can be rolled up across buckets and reused by several accessors; LTTB follows a separate downsampling path._
+> **Everyday analogy — Keep the Lego model, not just one answer about it**
+
+```mermaid
+flowchart LR
+  BLOCKS["Many loose Lego blocks"] --> MODEL["Build a reusable model"]
+  MODEL --> TALL["Ask: how tall?"]
+  MODEL --> RED["Ask: how many red blocks?"]
+  MODEL --> WEIGHT["Ask: how heavy?"]
+  NUMBER["Store only one answer"] --> LIMIT["Cannot answer a different question later"]
+  classDef main fill:#332659,stroke:#d2a8ff,color:#ffffff
+  classDef good fill:#173b2a,stroke:#3fb950,color:#ffffff
+  classDef bad fill:#3d2020,stroke:#f85149,color:#ffffff
+  class MODEL main
+  class TALL,RED,WEIGHT good
+  class NUMBER,LIMIT bad
+```
+
+_A finished Lego model can answer several questions: how tall, how many red blocks, or how heavy. One written number cannot._
+
+> **Back to the database** Loose blocks are raw rows, the reusable Lego model is intermediate aggregate state, combining models is rollup, and each question is an accessor such as duration or delta.
 
 ```mermaid
 flowchart LR
@@ -213,6 +232,8 @@ flowchart LR
   class STATE,ROLLUP state
   class A1,A2,VECTOR,NOTE,NOTE2 answer
 ```
+
+_Intermediate states can be rolled up across buckets and reused by several accessors; LTTB follows a separate downsampling path._
 
 ```sql
 SELECT

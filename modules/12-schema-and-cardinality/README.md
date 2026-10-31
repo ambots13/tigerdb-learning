@@ -22,8 +22,6 @@ Inside a columnar chunk, rows are grouped into batches by the segmentby column. 
 
 Pick a repeated column that matches important equality filters, then measure. We will now do the opposite on purpose to see what happens.
 
-_Repeated device IDs form substantial batches; a nearly unique request ID fragments rows into tiny batches._
-
 ```mermaid
 flowchart TD
   SAME["Same source rows"] --> GOOD["segmentby device_id: 20 repeated values"]
@@ -37,6 +35,8 @@ flowchart TD
   class GOOD,GB,RESULTG good
   class BAD,BB,RESULTB bad
 ```
+
+_Repeated device IDs form substantial batches; a nearly unique request ID fragments rows into tiny batches._
 
 ```sql
 SELECT 'about to build the same data twice, segmented two different ways' AS plan;

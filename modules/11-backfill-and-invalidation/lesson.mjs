@@ -82,6 +82,21 @@ FROM generate_series(1, 500) AS i;`,
       explain:
         'The watermark is the boundary the refresh has reached. Everything before it is served from stored ' +
         'buckets; everything after it can be filled in live.',
+      analogy: {
+        title: 'A bookmark separates checked pages from new pages',
+        description: 'Pages before the bookmark were already copied into your summary. New pages after it can still be read directly.',
+        mapping: 'The bookmark is the watermark, copied notes are stored aggregate buckets, and pages after it are the live raw tail. Editing an old page requires updating the copied summary.',
+        source: `flowchart LR
+  OLD["Pages already summarized"] --> BOOKMARK["Bookmark"]
+  BOOKMARK --> NEW["New pages read directly"]
+  EDIT["Change an old page"] --> NOTE["Mark its summary as out of date"]
+  NOTE --> REDO["Redo that part of the summary"]
+  REDO --> OLD
+  classDef main fill:#332659,stroke:#d2a8ff,color:#ffffff
+  classDef warning fill:#3d2020,stroke:#f85149,color:#ffffff
+  class BOOKMARK main
+  class EDIT,NOTE warning`,
+      },
       diagram: {
         title: 'The watermark separates stored history from the live tail',
         description: 'A late write behind the watermark changes raw history but remains absent from the stored rollup until a refresh covers that bucket.',

@@ -19,7 +19,23 @@ Suppose hour 1 contains users {1, 2} and hour 2 contains {2, 3}. Adding the two 
 
 A roaring bitmap keeps the integer members of the set in compressed form. That lets PostgreSQL combine the sets first and count them afterward.
 
-_User 2 occurs in both hours, so adding hourly counts double-counts that user._
+> **Everyday analogy — Combine sticker books before counting children**
+
+```mermaid
+flowchart LR
+  BOOK1["Morning stickers: Ana, Sam"] --> MERGE["Combine matching child stickers"]
+  BOOK2["Afternoon stickers: Sam, Leo"] --> MERGE
+  MERGE --> UNIQUE["Ana, Sam, Leo"]
+  UNIQUE --> COUNT["3 children, not 4"]
+  classDef main fill:#332659,stroke:#d2a8ff,color:#ffffff
+  classDef good fill:#173b2a,stroke:#3fb950,color:#ffffff
+  class MERGE main
+  class UNIQUE,COUNT good
+```
+
+_Two class lists both contain Sam. Counting each list separately counts Sam twice._
+
+> **Back to the database** Each sticker book is one time bucket, each numbered child is a member ID, and combining unique stickers is a bitmap union. Count only after duplicate stickers merge.
 
 ```mermaid
 flowchart LR
@@ -34,6 +50,8 @@ flowchart LR
   class CORRECT,UNION good
   class SUM,WRONG bad
 ```
+
+_User 2 occurs in both hours, so adding hourly counts double-counts that user._
 
 ```sql
 SELECT
@@ -114,8 +132,6 @@ A continuous aggregate is a stored time-based rollup maintained by TimescaleDB. 
 
 This is the key move: a distinct count cannot be combined later, but a set can.
 
-_Each hour stores membership once; larger time ranges union those hourly sets before counting._
-
 ```mermaid
 flowchart LR
   RAW["Raw visit rows"] -->|group by hour| BUILD["rb_build_agg(user_id)"]
@@ -129,6 +145,8 @@ flowchart LR
   classDef state fill:#1c2f45,stroke:#58a6ff,color:#e6edf3
   class H1,H2,H3,RANGE state
 ```
+
+_Each hour stores membership once; larger time ranges union those hourly sets before counting._
 
 ```sql
 CREATE MATERIALIZED VIEW visits_hourly
@@ -185,8 +203,6 @@ Call yesterday P (previous) and today C (current). Translate the business words 
 
 lag(users) places yesterday's bitmap in prev beside today's bitmap. Predict 3,000 returning, 1,000 churned, and 1,000 new users for each pair of full days.
 
-_The operand order determines whether a member is classified as churned or new._
-
 ```mermaid
 flowchart TD
   P["Yesterday P: 1, 2, 3"] --> RETURNING["In both days: 2, 3 are returning"]
@@ -204,6 +220,8 @@ flowchart TD
   class RETURNING shared
   class CHURNED,NEW changed
 ```
+
+_The operand order determines whether a member is classified as churned or new._
 
 ```sql
 WITH daily AS (

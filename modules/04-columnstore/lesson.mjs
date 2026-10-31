@@ -73,6 +73,23 @@ export default {
         'filter by most - here sensor_id - because the engine can then skip whole batches.\n\n' +
         'orderby controls the order of rows inside a batch. Time descending keeps similar values adjacent, ' +
         'which is what makes the encoding compact and recent-first scans cheap.',
+      analogy: {
+        title: 'Sort crayons into color boxes, then line them up by size',
+        description: 'If you want blue crayons, open only the blue box. Inside it, the crayons are already in a useful order.',
+        mapping: 'The crayon color is segmentby, each color box is a compressed batch, and crayon size order is orderby. A matching filter can skip unopened boxes.',
+        source: `flowchart LR
+  PILE["Mixed pile of crayons"] --> BLUE["Blue box"]
+  PILE --> RED["Red box"]
+  PILE --> GREEN["Green box"]
+  ASK["Find blue crayons"] --> BLUE
+  BLUE --> ORDER["Blue crayons lined up by size"]
+  ASK -. "do not open" .-> RED
+  ASK -. "do not open" .-> GREEN
+  classDef main fill:#332659,stroke:#d2a8ff,color:#ffffff
+  classDef chosen fill:#173b2a,stroke:#3fb950,color:#ffffff
+  class BLUE,ORDER chosen
+  class ASK main`,
+      },
       diagram: {
         title: 'segmentby chooses batches; orderby arranges rows inside them',
         description: 'Filtering by sensor can skip unrelated batches, while sorting each chosen batch by time keeps nearby readings together.',

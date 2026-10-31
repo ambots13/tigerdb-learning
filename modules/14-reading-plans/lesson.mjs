@@ -217,6 +217,23 @@ LIMIT 6;`,
         'physical order. Chosen for medium-sized result sets where random fetches would be too scattered.\n' +
         '- Custom Scan - a TimescaleDB node; see the next step.\n\n' +
         'The query below is deliberately shaped to produce a bitmap scan.',
+      analogy: {
+        title: 'Choose a route through a supermarket',
+        description: 'The same shopping list can be collected by walking every aisle or by using signs to visit only likely shelves.',
+        mapping: 'Products are rows, aisles are table pages, shelf signs are an index, and the chosen walking route is the scan node. EXPLAIN shows the route PostgreSQL selected.',
+        source: `flowchart TD
+  LIST["Shopping list"] --> ROUTE{"Choose a route"}
+  ROUTE --> ALL["Walk every aisle"]
+  ROUTE --> SIGNS["Use shelf signs, then visit matching shelves"]
+  ROUTE --> MAP["Mark several shelf locations, then visit them together"]
+  ALL --> CART["Collect the products"]
+  SIGNS --> CART
+  MAP --> CART
+  classDef main fill:#332659,stroke:#d2a8ff,color:#ffffff
+  classDef good fill:#173b2a,stroke:#3fb950,color:#ffffff
+  class ROUTE main
+  class CART good`,
+      },
       diagram: {
         title: 'A scan node describes how PostgreSQL reaches the rows',
         description: 'The planner estimates the work for several access paths and chooses one; the arrows below describe where each path reads data.',

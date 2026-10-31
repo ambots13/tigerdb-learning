@@ -17,7 +17,25 @@ Every policy is a background job. Inspect them, run them on demand, and write yo
 
 Refresh policies, columnstore policies and retention policies are all rows in the same job scheduler. If you completed modules 03 and 04 you already created two of these.
 
-_A policy is simply a scheduled job: the scheduler wakes it up, and the job performs one maintenance action._
+> **Everyday analogy — An alarm clock for chores**
+
+```mermaid
+flowchart TD
+  CLOCK["Alarm clock"] -->|8:00| CLEAN["Update the score sheet"]
+  CLOCK -->|9:00| PACK["Pack old toys tightly"]
+  CLOCK -->|10:00| DISCARD["Remove expired papers"]
+  CLEAN --> DONE1["Chore finished"]
+  PACK --> DONE2["Chore finished"]
+  DISCARD --> DONE3["Chore finished"]
+  classDef main fill:#332659,stroke:#d2a8ff,color:#ffffff
+  classDef done fill:#173b2a,stroke:#3fb950,color:#ffffff
+  class CLOCK main
+  class DONE1,DONE2,DONE3 done
+```
+
+_The alarm rings at the right time and tells a helper which chore to do._
+
+> **Back to the database** The alarm clock is the job scheduler. Each chore card is a scheduled job. Cleaning, packing, or throwing away old items corresponds to refresh, columnstore, or retention work.
 
 ```mermaid
 flowchart TD
@@ -34,6 +52,8 @@ flowchart TD
   class SCHED scheduler
   class CAGG,CHUNKS,DROP,PROC effect
 ```
+
+_A policy is simply a scheduled job: the scheduler wakes it up, and the job performs one maintenance action._
 
 ```sql
 SELECT job_id, application_name, proc_name, schedule_interval, hypertable_name

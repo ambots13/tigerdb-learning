@@ -14,6 +14,22 @@ export default {
       explain:
         'Refresh policies, columnstore policies and retention policies are all rows in the same job scheduler. ' +
         'If you completed modules 03 and 04 you already created two of these.',
+      analogy: {
+        title: 'An alarm clock for chores',
+        description: 'The alarm rings at the right time and tells a helper which chore to do.',
+        mapping: 'The alarm clock is the job scheduler. Each chore card is a scheduled job. Cleaning, packing, or throwing away old items corresponds to refresh, columnstore, or retention work.',
+        source: `flowchart TD
+  CLOCK["Alarm clock"] -->|8:00| CLEAN["Update the score sheet"]
+  CLOCK -->|9:00| PACK["Pack old toys tightly"]
+  CLOCK -->|10:00| DISCARD["Remove expired papers"]
+  CLEAN --> DONE1["Chore finished"]
+  PACK --> DONE2["Chore finished"]
+  DISCARD --> DONE3["Chore finished"]
+  classDef main fill:#332659,stroke:#d2a8ff,color:#ffffff
+  classDef done fill:#173b2a,stroke:#3fb950,color:#ffffff
+  class CLOCK main
+  class DONE1,DONE2,DONE3 done`,
+      },
       diagram: {
         title: 'One scheduler runs every automation policy',
         description: 'A policy is simply a scheduled job: the scheduler wakes it up, and the job performs one maintenance action.',

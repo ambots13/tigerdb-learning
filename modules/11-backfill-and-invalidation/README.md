@@ -87,7 +87,24 @@ SELECT
 
 The watermark is the boundary the refresh has reached. Everything before it is served from stored buckets; everything after it can be filled in live.
 
-_A late write behind the watermark changes raw history but remains absent from the stored rollup until a refresh covers that bucket._
+> **Everyday analogy — A bookmark separates checked pages from new pages**
+
+```mermaid
+flowchart LR
+  OLD["Pages already summarized"] --> BOOKMARK["Bookmark"]
+  BOOKMARK --> NEW["New pages read directly"]
+  EDIT["Change an old page"] --> NOTE["Mark its summary as out of date"]
+  NOTE --> REDO["Redo that part of the summary"]
+  REDO --> OLD
+  classDef main fill:#332659,stroke:#d2a8ff,color:#ffffff
+  classDef warning fill:#3d2020,stroke:#f85149,color:#ffffff
+  class BOOKMARK main
+  class EDIT,NOTE warning
+```
+
+_Pages before the bookmark were already copied into your summary. New pages after it can still be read directly._
+
+> **Back to the database** The bookmark is the watermark, copied notes are stored aggregate buckets, and pages after it are the live raw tail. Editing an old page requires updating the copied summary.
 
 ```mermaid
 flowchart LR
@@ -105,6 +122,8 @@ flowchart LR
   class TARGET repair
   class LATE,RAW,INVALID warning
 ```
+
+_A late write behind the watermark changes raw history but remains absent from the stored rollup until a refresh covers that bucket._
 
 ```sql
 SELECT
